@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+crash.log
+override.tf
+override_*.tf
+
+# Provider dependency lock 
+!.terraform.lock.hcl

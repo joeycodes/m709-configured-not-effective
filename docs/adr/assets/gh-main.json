@@ -1,0 +1,6 @@
+{
+  "name": "gh-main",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:joeycodes/m709-configured-not-effective:ref:refs/heads/main",
+  "audiences": ["api://AzureADTokenExchange"]
+}
