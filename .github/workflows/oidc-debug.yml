@@ -1,0 +1,39 @@
+name: OIDC token debug
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  inspect-oidc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request OIDC token and print claims
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RESPONSE=$(curl -sS \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange")
+
+          TOKEN=$(echo "$RESPONSE" | jq -r '.value')
+
+          echo "::add-mask::${TOKEN}"
+
+          PAYLOAD=$(echo "$TOKEN" | cut -d '.' -f 2 | tr '_-' '/+')
+          while [ $(( ${#PAYLOAD} % 4 )) -ne 0 ]; do
+            PAYLOAD="${PAYLOAD}="
+          done
+
+          CLAIMS=$(echo "$PAYLOAD" | base64 -d)
+
+          echo "--- full payload ---"
+          echo "$CLAIMS" | jq .
+
+          echo "--- key claims ---"
+          echo "$CLAIMS" | jq '{iss, sub, aud, repository, repository_id,
+                                repository_owner, repository_owner_id, ref, event_name}'
