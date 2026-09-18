@@ -1,0 +1,84 @@
+# Runs on every pull request that touches infrastructure.
+#
+# Read-only: it says what WOULD change, and changes nothing. The plan
+# output is what a reviewer actually reviews -- a one-line edit to a
+# variable can read as trivial in the diff and appear as "3 to destroy"
+# in the plan.
+
+name: Terraform plan
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - '.github/workflows/plan.yml'
+
+permissions:
+  id-token: write    # mint the OIDC token
+  contents: read     # let actions/checkout read the repo
+
+# Pinned, not `latest`. The runner image changing underneath the project
+# would break the reproducibility this work claims.
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: infra/envs/lab
+
+    # The azurerm provider reads these directly. ARM_USE_OIDC is what makes
+    # it exchange the GitHub token rather than look for a stored secret;
+    # it is set here, not in backend.tf, so the same files still work
+    # locally against `az login`.
+    env:
+      ARM_CLIENT_ID:       ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID:       ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC:        true
+
+    steps:
+      # The runner starts empty. Nothing from the repo exists until this.
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.0
+          # The wrapper intercepts stdout to expose it as step outputs,
+          # which mangles the plan text. Off.
+          terraform_wrapper: false
+
+      # Formatting first: it needs no credentials, so a badly formatted
+      # file fails in seconds instead of after a cloud round trip.
+      - name: Check formatting
+        run: terraform fmt -check -recursive
+
+      - uses: azure/login@v2
+        with:
+          client-id:       ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Init
+        run: terraform init -input=false
+
+      # Checks the configuration is internally coherent. Catches typos in
+      # attribute names that a plan would otherwise surface more obscurely.
+      - name: Validate
+        run: terraform validate
+
+      - name: Plan
+        id: plan
+        run: terraform plan -input=false -no-color -out=tfplan | tee plan.txt
+
+      # Render the plan on the run summary page, one click from the PR's
+      # checks, so reviewing does not mean scrolling raw logs.
+      - name: Publish plan to job summary
+        if: always()
+        run: |
+          {
+            echo '## Terraform plan'
+            echo '```'
+            tail -c 60000 plan.txt || echo '(no plan output)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,77 @@
+# Runs after a pull request is merged into main.
+#
+# This is the only path by which infrastructure is created or changed.
+# See docs/adr/ADR-000-bootstrap.md L2: on a single-owner subscription
+# that is a documented discipline, not a technical control.
+#
+# There is deliberately no approval gate yet (ADR D11). A merge is a
+# deploy. The `production` environment with a required reviewer arrives
+# in M2; when it does, it is added as `environment: production` on the
+# job below, and the federated credential is narrowed to match.
+
+name: Terraform apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/apply.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+# Two applies running at once would fight over the state lock. The blob
+# lease would make the second one fail rather than corrupt anything, but
+# queuing them is tidier than relying on a failure.
+concurrency:
+  group: terraform-apply-lab
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: infra/envs/lab
+
+    env:
+      ARM_CLIENT_ID:       ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID:       ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC:        true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.0
+          terraform_wrapper: false
+
+      - uses: azure/login@v2
+        with:
+          client-id:       ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Init
+        run: terraform init -input=false
+
+      # -auto-approve is safe here only because the review happened on the
+      # pull request. The plan a human read is the plan that reaches this
+      # point, because nothing can land on main without passing through it.
+      - name: Apply
+        run: terraform apply -input=false -auto-approve | tee apply.txt
+
+      - name: Publish apply output to job summary
+        if: always()
+        run: |
+          {
+            echo '## Terraform apply'
+            echo '```'
+            tail -c 60000 apply.txt || echo '(no apply output)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
