@@ -1,6 +1,6 @@
 {
   "name": "gh-pr",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:joeycodes/m709-configured-not-effective:pull_request",
+  "subject": "repo:joeycodes@32921212/m709-configured-not-effective@1336300413:pull_request",
   "audiences": ["api://AzureADTokenExchange"]
 }

@@ -1,16 +1,28 @@
+# Authentication probe. Proves the GitHub -> Azure trust chain works,
+# on its own, before any Terraform is involved.
+#
+# Three things are checked, in order:
+#   1. What subject claim GitHub actually puts in the OIDC token
+#   2. Whether Azure accepts that token            (control plane)
+#   3. Whether the CI identity can read the state container (data plane)
+#
+# Run manually from the Actions tab, or: gh workflow run oidc-debug.yml
+
 name: OIDC token debug
 
 on:
   workflow_dispatch:
 
 permissions:
-  id-token: write
-  contents: read
+  id-token: write      # lets the job mint an OIDC token. Without this, step 1 fails.
+  contents: read       # read-only on the repo; nothing here needs to write.
 
 jobs:
   inspect-oidc:
     runs-on: ubuntu-latest
     steps:
+
+      # --- 1. What does GitHub actually assert about us? ------------------
       - name: Request OIDC token and print claims
         shell: bash
         run: |
@@ -37,3 +49,35 @@ jobs:
           echo "--- key claims ---"
           echo "$CLAIMS" | jq '{iss, sub, aud, repository, repository_id,
                                 repository_owner, repository_owner_id, ref, event_name}'
+
+      # --- 2. Does Azure accept it? --------------------------------------
+      # azure/login takes the OIDC token, exchanges it at Entra ID for an
+      # Azure access token, and leaves the az CLI logged in for later steps.
+      # vars.* are repository Variables (identifiers, not secrets).
+      - name: Azure login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # --- 3. Did we get the permissions we expect? ----------------------
+      - name: Verify control plane and data plane access
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "--- who are we? (control plane) ---"
+          # user.name should be the app registration's client ID,
+          # i.e. we are acting as the CI service principal, not a human.
+          az account show --query "{subscription:name, id:id, identity:user.name}" -o json
+
+          echo "--- can we read the state container? (data plane) ---"
+          # This is the exact operation 'terraform init' performs against the
+          # backend. If the Storage Blob Data Contributor role assignment were
+          # missing, this is where it would fail -- with a 403, after the
+          # login above had already succeeded.
+          az storage container list \
+            --account-name sajianstutfstate \
+            --auth-mode login \
+            -o table
