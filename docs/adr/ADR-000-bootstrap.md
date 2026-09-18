@@ -378,6 +378,32 @@ repository was created after that date, so the `sub` GitHub actually emits may n
 be the `repo:<owner>/<repo>:ref:refs/heads/main` form registered above. The symptom
 would be a token exchange failure indistinguishable from a mistyped subject.
 
+**Open item resolved — the subject format was not what the documentation implied**
+
+Expected (the form every tutorial still shows):
+
+    repo:<owner>/<repo>:ref:refs/heads/main
+
+Actually emitted:
+
+    repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:refs/heads/main
+
+Since 15 July 2026, newly created repositories receive a `sub` claim built on
+immutable numeric IDs. The intent is sound — renaming a user or repository no
+longer silently breaks a trust relationship — but it invalidates every federated
+credential written in the older form. Both credentials registered during
+bootstrap would have failed.
+
+Found before it could fail, by running an authentication-only workflow that
+requested an OIDC token and printed its claims, before any Terraform was
+involved. Had the probe been skipped, the failure would have surfaced during
+`terraform init` as an opaque token exchange error, indistinguishable from a
+mistyped subject, a misconfigured provider, or a backend permission problem.
+
+This is the staged-hardening principle paying for itself: each mechanism was
+proven alone before the next was layered on, so the failure had exactly one
+possible cause.
+
 The first task of BOOTSTRAP.md step 6 is therefore to have a workflow fetch its own
 OIDC token, decode it, and compare the `sub` claim against what is registered here
 — before concluding anything else about the pipeline.
