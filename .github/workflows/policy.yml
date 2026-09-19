@@ -10,12 +10,11 @@
 
 name: Policy
 
+# No path filter -- see the note in plan.yml. A required check must always
+# report, or it blocks every pull request that does not happen to touch the
+# filtered paths.
 on:
   pull_request:
-    paths:
-      - 'infra/**'
-      - '.checkov.yml'
-      - '.github/workflows/policy.yml'
 
 permissions:
   contents: read
