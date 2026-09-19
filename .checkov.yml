@@ -1,0 +1,26 @@
+# Checkov configuration.
+#
+# Checkov ships a library of prebuilt rules for well-known cloud
+# misconfigurations -- public storage, wide-open security groups, missing
+# encryption. It knows nothing about this project's own design rules; those
+# are the job of the OPA policies added separately.
+
+directory:
+  - infra
+
+framework:
+  - terraform
+
+# Fail the run on any violation. There is a --soft-fail flag that reports
+# without failing; it is deliberately not used. A check that reports but
+# does not block is exactly the "configured but not effective" control this
+# project exists to study.
+soft-fail: false
+
+compact: true
+quiet: true
+
+# Suppressions belong here, each with a reason, so that an exception is a
+# reviewable line in a file rather than a habit of ignoring red marks.
+# skip-check:
+#   - CKV_AZURE_NNN  # reason, and when it should be revisited

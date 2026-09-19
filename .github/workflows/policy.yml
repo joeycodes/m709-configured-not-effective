@@ -1,0 +1,49 @@
+# Policy gate. Runs on every pull request that touches infrastructure.
+#
+# This job needs no Azure credentials: Checkov reads the .tf source and
+# never contacts the cloud. That makes it fast, and it means a policy
+# violation is caught before anything authenticates anywhere.
+#
+# IMPORTANT: a red check here blocks nothing on its own. Branch protection
+# on main is what turns this from a report into a gate -- see
+# docs/adr/ADR-000-bootstrap.md.
+
+name: Policy
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - '.checkov.yml'
+      - '.github/workflows/policy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  checkov:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Checkov
+        run: pip install --quiet checkov==3.3.19
+
+      - name: Scan
+        run: checkov --config-file .checkov.yml
+
+      - name: Publish result to job summary
+        if: always()
+        run: |
+          {
+            echo '## Policy gate'
+            echo ''
+            echo "Checkov $(checkov --version 2>/dev/null || echo '(not installed)')"
+            echo ''
+            echo 'Full findings are in the step log above.'
+          } >> "$GITHUB_STEP_SUMMARY"
