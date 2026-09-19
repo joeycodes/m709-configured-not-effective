@@ -7,11 +7,12 @@
 
 name: Terraform plan
 
+# No path filter. This check is marked Required by the ruleset on main, and a
+# required check that never reports leaves a pull request stuck on
+# "Expected -- waiting for status". Running it on every pull request costs
+# about thirty seconds and guarantees a result is always published.
 on:
   pull_request:
-    paths:
-      - 'infra/**'
-      - '.github/workflows/plan.yml'
 
 permissions:
   id-token: write    # mint the OIDC token
