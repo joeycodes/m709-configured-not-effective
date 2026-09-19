@@ -31,15 +31,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      # Unpinned for the first run only. Read the version printed below and
-      # pin it here (checkov==X.Y.Z) in a follow-up commit, for the same
-      # reason the provider is pinned in .terraform.lock.hcl: a rule library
-      # that changes underneath the project makes two runs incomparable.
       - name: Install Checkov
-        run: pip install --quiet checkov
-
-      - name: Record Checkov version
-        run: checkov --version | tee checkov-version.txt
+        run: pip install --quiet checkov==3.3.19
 
       - name: Scan
         run: checkov --config-file .checkov.yml
@@ -50,7 +43,7 @@ jobs:
           {
             echo '## Policy gate'
             echo ''
-            echo "Checkov $(cat checkov-version.txt 2>/dev/null || echo '(version unknown)')"
+            echo "Checkov $(checkov --version 2>/dev/null || echo '(not installed)')"
             echo ''
             echo 'Full findings are in the step log above.'
           } >> "$GITHUB_STEP_SUMMARY"
