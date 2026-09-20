@@ -12,6 +12,7 @@
 name: Terraform apply
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -26,7 +27,7 @@ permissions:
 # lease would make the second one fail rather than corrupt anything, but
 # queuing them is tidier than relying on a failure.
 concurrency:
-  group: terraform-apply-lab
+  group: terraform-lab-state
   cancel-in-progress: false
 
 jobs:
