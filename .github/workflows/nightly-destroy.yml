@@ -1,0 +1,80 @@
+# Destroys the lab environment. Runs nightly, and on demand.
+#
+# What it can reach: everything recorded in the infra/envs/lab state file.
+# What it cannot: anything else. rg-tfstate and the state file itself were
+# created by hand during bootstrap and live outside this state, so they are
+# structurally out of reach rather than merely excluded by a filter
+# (docs/adr/ADR-000-bootstrap.md, D1 and D12).
+#
+# -auto-approve carries no review here, unlike apply.yml where a human read
+# the plan on a pull request. It is accepted because this layer is designed
+# to be disposable: every resource in this state is rebuilt from code, and
+# losing it costs a pipeline run rather than any data.
+#
+# To rebuild after a teardown: run the Terraform apply workflow manually
+# (workflow_dispatch), or merge any change under infra/.
+#
+# Resources created outside Terraform are invisible to this workflow and keep
+# accruing cost. Compare `az resource list --tag layer=ephemeral` against
+# `terraform state list` to find them.
+
+name: Terraform nightly destroy
+
+on:
+  schedule:
+    # 07:00 UTC. Edmonton is UTC-6 in summer and UTC-7 in winter, so this
+    # lands at 01:00 or 00:00 local -- the local hour shifts twice a year.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: terraform-lab-state
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: infra/envs/lab
+
+    env:
+      ARM_CLIENT_ID:       ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID:       ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC:        true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.0
+          terraform_wrapper: false
+
+      - uses: azure/login@v2
+        with:
+          client-id:       ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Init
+        run: terraform init -input=false
+
+      - name: Destroy
+        run: terraform destroy -input=false -auto-approve | tee destroy.txt
+
+      - name: Publish destroy output to job summary
+        if: always()
+        run: |
+          {
+            echo '## Terraform destroy'
+            echo '```'
+            tail -c 60000 destroy.txt || echo '(no destroy output)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

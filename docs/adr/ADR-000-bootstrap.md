@@ -444,13 +444,21 @@ of the lab.
 **Decision**
 Every resource carries a `layer` tag. `rg-tfstate` and its contents are
 `layer=persistent`; everything Terraform creates for the lab is `layer=ephemeral`.
-The nightly teardown targets `layer=ephemeral` only.
+Teardown is bounded by the Terraform state, not by tags. The layer tag is retained
+as an independently queryable assertion: any resource tagged layer=ephemeral that
+survives a teardown, or that exists in Azure without a corresponding entry in 
+state, is by definition drift.
 
 **Consequences**
-- (+) The teardown's blast radius is defined by a tag rather than by a resource-group
-  name that could later be mistyped.
-- (−) An untagged resource is invisible to the teardown and will accumulate cost.
-  Tag presence must itself be enforced by policy-as-code (M2).
+- (+) The blast radius is defined by the state file. Terraform can only destroy
+  what it created, so the persistent layer is structurally out of reach rather
+  than merely labelled differently -- a mistyped tag cannot widen it.
+- (−) Anything created outside Terraform is invisible to the teardown and will
+  accumulate cost. The `layer` tag makes that class findable (compare
+  `az resource list --tag layer=ephemeral` against `terraform state list`), but
+  finding it and destroying it remain separate actions.
+- (−) Tag presence is not yet enforced. An untagged resource does not escape
+  teardown, but it does weaken the drift check above. Policy-as-code (M2).
 
 ---
 
