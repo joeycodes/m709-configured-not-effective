@@ -24,7 +24,7 @@ on:
   schedule:
     # 07:00 UTC. Edmonton is UTC-6 in summer and UTC-7 in winter, so this
     # lands at 01:00 or 00:00 local -- the local hour shifts twice a year.
-    - cron: '0 7 * * *'
+    - cron: '22 7 * * *'
   workflow_dispatch:
 
 permissions:
