@@ -42,6 +42,7 @@ jobs:
     defaults:
       run:
         working-directory: infra/envs/lab
+        shell: bash
 
     env:
       ARM_CLIENT_ID:       ${{ vars.AZURE_CLIENT_ID }}

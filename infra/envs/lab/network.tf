@@ -102,6 +102,16 @@ resource "azurerm_subnet_network_security_group_association" "workload" {
 # backbone that bypasses the tunnel entirely: the tunnel would still show as
 # up and BGP would still converge, while no traffic actually used it.
 resource "azurerm_virtual_network_peering" "hub_to_spoke" {
+  # Azure rejects a peering change while a subnet on the same VNet is
+  # still being updated (ReferencedResourceNotProvisioned). Nothing links
+  # the two otherwise, so Terraform would create them at the same time.
+  # The same applies to the spoke-to-hub peering below.
+  depends_on = [
+    azurerm_subnet.reserved,
+    azurerm_subnet.workload,
+    azurerm_subnet_network_security_group_association.workload,
+  ]
+
   for_each = local.spokes
 
   name                      = "peer-hub-to-${each.key}"
@@ -112,6 +122,12 @@ resource "azurerm_virtual_network_peering" "hub_to_spoke" {
 }
 
 resource "azurerm_virtual_network_peering" "spoke_to_hub" {
+  depends_on = [
+    azurerm_subnet.reserved,
+    azurerm_subnet.workload,
+    azurerm_subnet_network_security_group_association.workload,
+  ]
+
   for_each = local.spokes
 
   name                      = "peer-${each.key}-to-hub"
