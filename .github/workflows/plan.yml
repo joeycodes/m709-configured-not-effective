@@ -27,6 +27,7 @@ jobs:
     defaults:
       run:
         working-directory: infra/envs/lab
+        shell: bash
 
     # The azurerm provider reads these directly. ARM_USE_OIDC is what makes
     # it exchange the GitHub token rather than look for a stored secret;
