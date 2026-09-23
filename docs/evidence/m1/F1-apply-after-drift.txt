@@ -1,0 +1,59 @@
+### 2026-09-23
+### test: a repeated apply reports no difference between the configuration and the deployed environment; the NIC had already been restored by hand, so this shows convergence rather than drift reclamation
+### cmd: gh workflow run apply.yml
+
+Run terraform apply -input=false -auto-approve | tee apply.txt
+  terraform apply -input=false -auto-approve | tee apply.txt
+  shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+  env:
+    ARM_CLIENT_ID: ***
+    ARM_TENANT_ID: b2727b95-c0bc-476b-8def-4ad96947b2ce
+    ARM_SUBSCRIPTION_ID: 23f19e67-5d24-4e37-9258-707daef49af0
+    ARM_USE_OIDC: true
+    TF_VAR_admin_ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHdovh10qRkogkn/GTAfz119bK0oN035Ccoi2rqSWFqz cne-lab
+Acquiring state lock. This may take a few moments...
+azurerm_resource_group.lab: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab]
+azurerm_virtual_network.this["tier1"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier1]
+azurerm_virtual_network.this["tier2"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier2]
+azurerm_virtual_network.this["tier0"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier0]
+azurerm_network_security_group.workload["snet-onprem-core"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/networkSecurityGroups/nsg-onprem-core]
+azurerm_network_security_group.workload["snet-tier2-workload"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/networkSecurityGroups/nsg-tier2-workload]
+azurerm_network_security_group.workload["snet-tier1-workload"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/networkSecurityGroups/nsg-tier1-workload]
+azurerm_network_security_group.workload["snet-hub-nva"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/networkSecurityGroups/nsg-hub-nva]
+azurerm_network_security_group.workload["snet-tier0-workload"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/networkSecurityGroups/nsg-tier0-workload]
+azurerm_virtual_network.this["hub"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-hub]
+azurerm_virtual_network.this["onprem"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-onprem]
+azurerm_subnet.reserved["AzureFirewallSubnet"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-hub/subnets/AzureFirewallSubnet]
+azurerm_subnet.reserved["GatewaySubnet"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-hub/subnets/GatewaySubnet]
+azurerm_subnet.workload["snet-tier2-workload"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier2/subnets/snet-tier2-workload]
+azurerm_subnet.workload["snet-onprem-core"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-onprem/subnets/snet-onprem-core]
+azurerm_subnet.workload["snet-tier1-workload"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier1/subnets/snet-tier1-workload]
+azurerm_subnet.workload["snet-hub-nva"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-hub/subnets/snet-hub-nva]
+azurerm_subnet.workload["snet-tier0-workload"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier0/subnets/snet-tier0-workload]
+azurerm_subnet_network_security_group_association.workload["snet-hub-nva"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-hub/subnets/snet-hub-nva]
+azurerm_subnet_network_security_group_association.workload["snet-tier2-workload"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier2/subnets/snet-tier2-workload]
+azurerm_network_interface.spoke["tier0"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/networkInterfaces/nic-cne-tier0]
+azurerm_network_interface.hub: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/networkInterfaces/nic-cne-hub]
+azurerm_network_interface.spoke["tier2"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/networkInterfaces/nic-cne-tier2]
+azurerm_subnet_network_security_group_association.workload["snet-onprem-core"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-onprem/subnets/snet-onprem-core]
+azurerm_subnet_network_security_group_association.workload["snet-tier1-workload"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier1/subnets/snet-tier1-workload]
+azurerm_subnet_network_security_group_association.workload["snet-tier0-workload"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier0/subnets/snet-tier0-workload]
+azurerm_network_interface.spoke["tier1"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/networkInterfaces/nic-cne-tier1]
+azurerm_route_table.spoke["tier2"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/routeTables/rt-cne-tier2]
+azurerm_route_table.spoke["tier1"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/routeTables/rt-cne-tier1]
+azurerm_route_table.spoke["tier0"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/routeTables/rt-cne-tier0]
+azurerm_linux_virtual_machine.hub: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Compute/virtualMachines/vm-cne-hub]
+azurerm_virtual_network_peering.hub_to_spoke["tier0"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-hub/virtualNetworkPeerings/peer-hub-to-tier0]
+azurerm_virtual_network_peering.spoke_to_hub["tier2"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier2/virtualNetworkPeerings/peer-tier2-to-hub]
+azurerm_virtual_network_peering.hub_to_spoke["tier2"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-hub/virtualNetworkPeerings/peer-hub-to-tier2]
+azurerm_virtual_network_peering.hub_to_spoke["tier1"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-hub/virtualNetworkPeerings/peer-hub-to-tier1]
+azurerm_virtual_network_peering.spoke_to_hub["tier1"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier1/virtualNetworkPeerings/peer-tier1-to-hub]
+azurerm_virtual_network_peering.spoke_to_hub["tier0"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier0/virtualNetworkPeerings/peer-tier0-to-hub]
+azurerm_linux_virtual_machine.spoke["tier0"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Compute/virtualMachines/vm-cne-tier0]
+azurerm_linux_virtual_machine.spoke["tier1"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Compute/virtualMachines/vm-cne-tier1]
+azurerm_linux_virtual_machine.spoke["tier2"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Compute/virtualMachines/vm-cne-tier2]
+azurerm_subnet_route_table_association.spoke["tier0"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier0/subnets/snet-tier0-workload]
+azurerm_subnet_route_table_association.spoke["tier1"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier1/subnets/snet-tier1-workload]
+azurerm_subnet_route_table_association.spoke["tier2"]: Refreshing state... [id=/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier2/subnets/snet-tier2-workload]
+
+No changes. Your infrastructure matches the configuration.

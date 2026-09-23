@@ -1,0 +1,18 @@
+### 2026-09-23
+### test: a deny rule for tier-2 to tier-0 is placed at the head of the forward chain, ahead of the stateful accept
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "nft insert rule inet filter forward ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter drop; nft -a list chain inet filter forward" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+table inet filter {
+	chain forward { # handle 2
+		type filter hook forward priority filter; policy drop;
+		ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter packets 0 bytes 0 drop # handle 14
+		ct state established,related accept # handle 10
+		ct state invalid drop # handle 11
+		ip saddr @allowed_v4 counter packets 5 bytes 1836 accept # handle 12
+		counter packets 0 bytes 0 log prefix "fwd-drop: " drop # handle 13
+	}
+}
+
+[stderr]

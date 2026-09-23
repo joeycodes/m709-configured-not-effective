@@ -1,0 +1,55 @@
+### 2026-09-23
+### test: the NVA is configured at both forwarding layers — cloud-init completed, nftables is loaded and active, the kernel forwards, and the counters start at zero
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "cloud-init status --long; echo ---; which nft; systemctl is-active nftables; echo ---; sysctl net.ipv4.ip_forward; echo ---; nft list ruleset" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+status: done
+extended_status: done
+boot_status_code: enabled-by-generator
+last_update: Thu, 01 Jan 1970 00:00:14 +0000
+detail: DataSourceAzure [seed=/dev/sr0]
+errors: []
+recoverable_errors: {}
+---
+/usr/sbin/nft
+active
+---
+net.ipv4.ip_forward = 1
+---
+table inet filter {
+	set allowed_v4 {
+		type ipv4_addr
+		flags interval
+		elements = { 10.0.0.0/16, 10.100.0.0/14 }
+	}
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+		ct state established,related accept
+		ct state invalid drop
+		iif "lo" accept
+		ip saddr 168.63.129.16 accept
+		ip saddr @allowed_v4 accept
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		ct state established,related accept
+		ct state invalid drop
+		ip saddr @allowed_v4 counter packets 2 bytes 1584 accept
+		counter packets 0 bytes 0 log prefix "fwd-drop: " drop
+	}
+
+	chain output {
+		type filter hook output priority filter; policy accept;
+	}
+}
+table ip security {
+	chain OUTPUT {
+		type filter hook output priority 150; policy accept;
+		ip daddr 168.63.129.16 tcp dport 53 counter packets 0 bytes 0 accept
+		ip daddr 168.63.129.16 ip protocol tcp skuid 0 counter packets 2852 bytes 925055 accept
+		ip daddr 168.63.129.16 ip protocol tcp ct state invalid,new counter packets 0 bytes 0 drop
+	}
+}
