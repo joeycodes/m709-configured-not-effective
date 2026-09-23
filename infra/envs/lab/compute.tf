@@ -32,6 +32,7 @@ resource "azurerm_network_interface" "hub" {
 
 # Create virtual machine
 resource "azurerm_linux_virtual_machine" "spoke" {
+  #checkov:skip=CKV_AZURE_50:Extension operations are the only management path; no VM has a public IP or an inbound management port, so run-command replaces SSH rather than adding to it
   for_each = local.spokes
 
   name                = "vm-cne-${each.key}"
@@ -64,6 +65,7 @@ resource "azurerm_linux_virtual_machine" "spoke" {
 }
 
 resource "azurerm_linux_virtual_machine" "hub" {
+  #checkov:skip=CKV_AZURE_50:Extension operations are the only management path; no VM has a public IP or an inbound management port, so run-command replaces SSH rather than adding to it
   name                = "vm-cne-hub"
   resource_group_name = azurerm_resource_group.lab.name
   location            = azurerm_resource_group.lab.location
