@@ -61,6 +61,9 @@ They are never managed by Terraform.
 
 ## D2. Region: `westus`
 
+> Superseded by D16. The policy this decision was constrained by no longer
+> exists; it was removed automatically when the subscription offer changed.
+
 **Context**
 The subscription carries a subscription-scoped Azure Policy assignment whose
 `listOfAllowedLocations` parameter permits only:
@@ -84,6 +87,9 @@ closest to the author (Edmonton, Alberta).
 ---
 
 ## D3. Compute capacity: 6 vCPU, fixed
+
+> Superseded by D15. The vCPU cap was not the binding limit, and the
+> attribution of the rejected quota requests below is corrected there.
 
 **Context**
 `Total Regional vCPUs` in `westus` is capped at 6. Per-family quotas are higher
@@ -518,6 +524,255 @@ is set in. Here the two diverge, and the divergence is only visible to a reviewe
 who knows how the environment is administered. An exception is therefore only as
 sound as the reason attached to it, which is why the reason lives in the code and
 the skip is reviewed in the pull request that introduces it.
+
+---
+
+## D15. Compute capacity revised after the subscription offer change
+
+> Supersedes D3.
+
+**Context**
+D3 treated `Total Regional vCPUs` as the single binding limit on the topology.
+Deploying the first virtual machines showed that to be incomplete. `terraform
+apply` failed for all four with `SkuNotAvailable`, and `az vm list-skus`
+reported `NotAvailableForSubscription` for both `Standard_B1s` and
+`Standard_B2ls_v2` in all five regions the location policy permits (D2).
+
+Three independent gates must all pass before an instance can be created:
+
+1. **SKU availability** — whether the subscription may allocate that size in
+   that region at all.
+2. **Family quota** — `Standard <family> Family vCPUs`.
+3. **Regional total** — `Total Regional vCPUs`, evaluated in addition to the
+   family quota.
+
+Only the second and third appear in `az vm list-usage`, and the two listings
+disagree in both directions: families with a quota above zero were unavailable,
+while D and F v6/v7 sizes listed as available had no quota entry at all. A size
+is deployable only where the two listings agree.
+
+The subscription was then upgraded from Azure for Students to pay-as-you-go
+(`quotaId` `PayAsYouGo_2014-09-01`, `spendingLimit` `Off`). The two gates moved
+independently:
+
+- **Quota rose without a request.** `Total Regional vCPUs` 6 to 10, `Standard BS
+  Family` 4 to 10, and the D, E and F v6/v7 families gained entries at 10.
+- **SKU availability did not change.** x86 burstable (`BS`, `Bsv2`, `Basv2`)
+  remains unavailable, as does every generation from v1 to v5. Available are
+  current-generation `D` v6/v7 and `F` v6/v7, and all Arm64 sizes.
+
+Availability is not a property of a size. It is a property of the pair (size,
+region) for this subscription, and the two listings disagree in four distinct
+ways across the regions examined:
+
+| Case | Where |
+|------|-------|
+| SKU unavailable, quota present | `Standard_B1s`, every region examined |
+| SKU available, family quota absent | `Basv2`, `Bsv2` in `canadaeast` |
+| Family quota present, SKU not offered at all | `Fasv7` in both Canadian regions |
+| SKU available, no published price | `Standard_D2als_v6` in `canadaeast` |
+
+Generation is a good predictor but not the rule: `canadacentral` refuses every
+size examined, current generation included, while `canadaeast` allows both
+current-generation `D` sizes and the x86 burstable families that `westus`
+refuses. `Standard_B1s` is separately announced for retirement on 15 November
+2028, which is consistent with subscriptions being steered away from it
+everywhere.
+
+The practical consequence is that a size cannot be chosen and then placed. The
+region and the size are one decision, and it has to be made from the
+intersection of two listings that are each incomplete.
+
+D3 attributed the two rejected quota-increase requests to the absence of a
+support plan. That was wrong: the offer type was the cause. After the upgrade
+the quota rose with no request submitted, and increases became self-service.
+
+**Decision**
+The lab moves to `canadaeast` and is re-sized onto current-generation `Dsv6` and
+`Dlsv6`, the two families that are simultaneously available, in quota and priced
+there:
+
+| Role                                                 | Size                | vCPU | RAM   | CAD/hour |
+|------------------------------------------------------|---------------------|------|-------|----------|
+| Hub NVA (StrongSwan + FRR + nftables + Suricata)     | `Standard_D2s_v6`   | 2    | 8 GiB | 0.1552   |
+| Tier-0 endpoint                                      | `Standard_D2ls_v6`  | 2    | 4 GiB | 0.1354   |
+| Tier-1 endpoint                                      | `Standard_D2ls_v6`  | 2    | 4 GiB | 0.1354   |
+| Tier-2 endpoint                                      | `Standard_D2ls_v6`  | 2    | 4 GiB | 0.1354   |
+| Simulated on-premises edge router (FRR + StrongSwan) | `Standard_D2ls_v6`  | 2    | 4 GiB | 0.1354   |
+| **Total**                                            |                     | **10 of 25** | | **0.697** |
+
+Family usage: `Dsv6` 2/15, `Dlsv6` 8/10. Prices are the Linux pay-as-you-go
+retail rates for `canadaeast`, read from the retail price API on 2026-09-23.
+
+Both `Total Regional vCPUs` (10 to 25) and `Dsv6` (10 to 15) were raised by
+self-service request, granted within minutes and without a support plan — the
+mechanism D3 recorded as unavailable.
+
+Both sizes are expressed as Terraform variables (`nva_vm_size`,
+`endpoint_vm_size`) rather than literals. This change is the reason: the value
+depends on an external constraint that moves without notice and is invisible to
+the configuration, so it belongs where a change to it is a reviewable one-line
+diff.
+
+**Consequences**
+- (+) Fifteen vCPU of headroom remain, enough to separate inspection onto its own
+  instance. D3 recorded that no instance could be added without removing another;
+  that is no longer true.
+- (+) Both families are current generation, on no announced retirement path, x86
+  and generation 2, so one image serves every role and cloud-init is unchanged.
+  `Dsv6` and `Dlsv6` accept every managed disk type, so the OS disks stay
+  `Standard_LRS`.
+- (+) The NVA gains memory over the size D3 chose (8 GiB against 4 GiB), which
+  matters once Suricata runs on it, and each endpoint gains 4 GiB against the
+  1 GiB of a `B1s`.
+- (−) Neither family has a local temporary disk, so anything that assumes one is
+  present has to be written to the OS disk or to a data disk added later.
+- (−) The hub still terminates the tunnel, runs BGP, filters and inspects on one
+  instance — but the headroom to separate inspection now exists. From here that
+  consolidation is a deliberate choice to match a common deployment shape, not a
+  capacity constraint. D3's framing of it as forced no longer holds.
+- (−) Compute is now billed rather than drawn from a credit: CAD 0.697 per hour
+  with all five instances running, against CAD 0.111 for the Arm64 sizes priced
+  in `westus`. The topology is not cheap per hour and hours are the only lever,
+  so the controls that bound spend are the nightly teardown and the budget
+  alerts, not the SKU choice.
+- Availability was established from a listing, not from a deployment. The listing
+  is itself a claim; the decision is confirmed only when an apply creates these
+  instances.
+
+**Alternatives considered**
+- *Arm64* is consistently the cheapest option where it is priced at all
+  (`B2pls_v2` at USD 0.040/hour, `B2pts_v2` at USD 0.010/hour in `westus`), and
+  the endpoints do not care about instruction set — they generate and receive
+  traffic. It was rejected for `canadaeast` because the Arm64 `D2pls_v6` returns
+  no price there, and adopting it would mean a second image for a saving that
+  cannot be quantified in the region actually being used.
+- *A second subscription* — superseded. Upgrading this subscription in place kept
+  the subscription ID, the federated credential, the role assignments, the state
+  backend and the location policy of D2, so nothing had to be migrated.
+- *Staying in `westus` on Arm64* (`B2pls_v2` for the NVA, `B2pts_v2` for the
+  endpoints) was the plan until `canadaeast` was probed. It is cheaper by a
+  factor of five, but every size in that family is 2 vCPU with 1 GiB of memory
+  at the low end, and it requires Arm64 images throughout. `canadaeast` keeps
+  the lab on one architecture and, incidentally, in Canada — a consequence of
+  the choice rather than a reason for it.
+
+**Thesis note**
+None of the three gates is visible to the configuration, to `terraform plan`, or
+to the policy gate. Both checks passed on a topology that could not be deployed
+at all, in any permitted region. The failure surfaced only at apply, from the
+Azure control plane. Before *configured does not mean effective* there is a
+plainer step: configured does not mean deployable.
+
+---
+
+## D16. The region policy was removed by an offer change, not by a decision
+
+**Context**
+D2 recorded that deployment regions were restricted to five locations by a
+subscription-scoped Azure Policy assignment, and chose `westus` as the closest
+permitted one. That constraint no longer exists. It was not lifted deliberately.
+
+The subscription's activity log gives the full lifecycle of the assignment
+`sys.regionrestriction` (display name "Allowed resource deployment regions",
+built-in definition `b86dabb9-b578-4d7b-b842-3b45e95769a1`, `assignmentType`
+`System`, `enforcementMode` `Default`):
+
+| When (UTC)           | What                                     | By                |
+|----------------------|------------------------------------------|-------------------|
+| 2026-08-31 21:43:53  | Created with the subscription            | `CABProvisioning` |
+| 2026-08-31 22:13     | Two attempts to reassign it, both failed | the author        |
+| 2026-09-23 05:52:09  | Deleted                                  | `CABProvisioning` |
+
+The calling identity resolves to the first-party application `CABProvisioning`.
+The name places it on the commerce and account-provisioning side of the
+platform, not the security side: the identity that created and later removed a
+security control is the one that provisions billing arrangements.
+
+Three things follow from that sequence.
+
+The control was genuinely external. The author holds `Owner`, but both attempts
+to modify the assignment were rejected with `InvalidPolicyAssignmentName` — the
+name may not begin with `sys.`. This is the one control in the environment that
+the author could not change, which is why D2 treated it as fixed. That reading
+was correct at the time.
+
+It was removed by a billing operation. The delete was issued by the same
+application identity that created it, minutes after the subscription moved from
+Azure for Students to pay-as-you-go. No one asked for it, nothing in the
+repository changed, and no notification was received. The upgrade was undertaken
+to obtain VM sizes (D15); the region restriction disappearing was a side effect
+that was neither intended nor announced.
+
+The removal was discovered by accident. It surfaced only because a deployment to
+`canadaeast` was expected to fail and did not. Nothing in the project would have
+detected it otherwise: the policy gate checks configuration in the repository,
+`terraform plan` does not evaluate subscription policy, and no test asserted that
+the restriction still held.
+
+**Decision**
+D2 is superseded. Region selection is no longer constrained by policy, and the
+region is chosen on the criteria that actually bind: SKU availability and
+per-region quota (D15), both of which are region-specific and were verified in
+each candidate before the change. The lab moves to `canadaeast`, which is the
+only examined region where the required sizes are available, in quota and
+priced. `canadacentral` — larger, zone-redundant and closer — refuses every size
+examined, so the choice was made by the platform's allocation policy rather than
+by any property of the design.
+
+The control is not reinstated. A self-assigned equivalent would be a control the
+author can remove at will, which is a different thing from the one D2 described
+and would misrepresent the environment. If a location policy is wanted later, it
+is added deliberately, as its own decision, and tested as one.
+
+**Consequences**
+- (+) The region is now a free choice, which removes the constraint that pushed
+  the lab away from Canadian regions.
+- (−) Everything D2 relied on has to be re-verified in the new region: SKU
+  availability, `Total Regional vCPUs`, and the availability of the managed
+  services the M2 and M3 validation windows need.
+- (−) An audit trail existed but did not reach anyone. The event is in the
+  activity log, and the first query for it returned nothing because
+  `az monitor activity-log list` defaults to 50 events. Evidence that is only
+  retrievable by someone who already suspects the answer is not detection.
+- The same mechanism can act again. Anything created with the subscription
+  (`assignmentType: System`) is owned by the platform, not by this project, and
+  can be changed or removed by it without a change to the repository.
+- (+) The layer separation of D12 held under a change it was never designed for.
+  The lab is rebuilt in a different region while the state backend, the storage
+  account and the data-plane role assignments stay where they are: the region is
+  a property of the ephemeral layer alone. The backend is deliberately left in
+  `westus`, because a backend and the resources it tracks need not share a
+  region, and moving it would mean re-creating the account, re-granting
+  data-plane access and migrating the file that defines the teardown boundary —
+  risk with nothing bought. The platform's own `NetworkWatcherRG` follows the
+  lab: a second watcher resource appears for the new region, outside the state
+  and outside the teardown, as D12 predicts of anything Terraform did not
+  create.
+
+**Method note**
+This is the first control in the project that was verified, recorded, and then
+silently stopped being true. The distinction it forces is between *verified once*
+and *verified now*: D13 established the policy gate by negative test at bootstrap,
+and that evidence says nothing about today.
+
+Three consequences for the method, carried into M3:
+
+1. Control verification is re-run on a schedule, not only when a control is
+   built. A control's last verification has a date, and the date is part of the
+   claim.
+2. Any change to the environment that is not itself a security change — a billing
+   move, a subscription transfer, a tenant migration — is a trigger to re-run the
+   full set. The change that removed this control was a payment method.
+3. Where a control is external, the assertion under test is "it still exists and
+   still denies", not "it was configured". Only the first can be answered by an
+   attempt that is expected to fail.
+
+For the thesis, this sits one step beyond the project's premise. *Configured does
+not mean effective* assumes the configuration is still there. Here the
+configuration was removed by a party with the authority to do so, for reasons
+unrelated to security, and every document describing the environment continued to
+assert it.
 
 ---
 

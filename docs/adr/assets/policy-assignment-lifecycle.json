@@ -1,0 +1,82 @@
+[
+  {
+    "action": "Microsoft.Authorization/policyAssignments/delete",
+    "callerType": "app",
+    "scope": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/providers/Microsoft.Authorization/policyAssignments/sys.regionrestriction",
+    "status": "Succeeded",
+    "statusMessage": null,
+    "time": "2026-09-23T05:52:09.0222807Z"
+  },
+  {
+    "action": "Microsoft.Authorization/policyAssignments/delete",
+    "callerType": "app",
+    "scope": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/providers/Microsoft.Authorization/policyAssignments/sys.regionrestriction",
+    "status": "Started",
+    "statusMessage": null,
+    "time": "2026-09-23T05:52:08.8504021Z"
+  },
+  {
+    "action": "Microsoft.Authorization/policyAssignments/write",
+    "callerType": "app",
+    "scope": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/providers/Microsoft.Authorization/policyAssignments/SecurityCenterBuiltIn",
+    "status": "Succeeded",
+    "statusMessage": null,
+    "time": "2026-09-18T04:57:03.265566Z"
+  },
+  {
+    "action": "Microsoft.Authorization/policyAssignments/write",
+    "callerType": "app",
+    "scope": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/providers/Microsoft.Authorization/policyAssignments/SecurityCenterBuiltIn",
+    "status": "Started",
+    "statusMessage": null,
+    "time": "2026-09-18T04:57:01.9686724Z"
+  },
+  {
+    "action": "Microsoft.Authorization/policyAssignments/write",
+    "callerType": "user",
+    "scope": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/providers/Microsoft.Authorization/policyAssignments/sys.regionrestriction",
+    "status": "Failed",
+    "statusMessage": "{\"error\":{\"code\":\"InvalidPolicyAssignmentName\",\"message\":\"The policy assignment id 'sys.regionrestriction' is invalid. The policy assignment id must not start with 'sys.'.\"}}",
+    "time": "2026-08-31T22:13:43.8932358Z"
+  },
+  {
+    "action": "Microsoft.Authorization/policyAssignments/write",
+    "callerType": "user",
+    "scope": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/providers/Microsoft.Authorization/policyAssignments/sys.regionrestriction",
+    "status": "Started",
+    "statusMessage": null,
+    "time": "2026-08-31T22:13:43.8151088Z"
+  },
+  {
+    "action": "Microsoft.Authorization/policyAssignments/write",
+    "callerType": "user",
+    "scope": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/providers/Microsoft.Authorization/policyAssignments/sys.regionrestriction",
+    "status": "Failed",
+    "statusMessage": "{\"error\":{\"code\":\"InvalidPolicyAssignmentName\",\"message\":\"The policy assignment id 'sys.regionrestriction' is invalid. The policy assignment id must not start with 'sys.'.\"}}",
+    "time": "2026-08-31T22:13:02.9560203Z"
+  },
+  {
+    "action": "Microsoft.Authorization/policyAssignments/write",
+    "callerType": "user",
+    "scope": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/providers/Microsoft.Authorization/policyAssignments/sys.regionrestriction",
+    "status": "Started",
+    "statusMessage": null,
+    "time": "2026-08-31T22:13:02.7528955Z"
+  },
+  {
+    "action": "Microsoft.Authorization/policyAssignments/write",
+    "callerType": "app",
+    "scope": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/providers/Microsoft.Authorization/policyAssignments/sys.regionrestriction",
+    "status": "Succeeded",
+    "statusMessage": null,
+    "time": "2026-08-31T21:43:54.1673721Z"
+  },
+  {
+    "action": "Microsoft.Authorization/policyAssignments/write",
+    "callerType": "app",
+    "scope": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/providers/Microsoft.Authorization/policyAssignments/sys.regionrestriction",
+    "status": "Started",
+    "statusMessage": null,
+    "time": "2026-08-31T21:43:53.9173722Z"
+  }
+]
