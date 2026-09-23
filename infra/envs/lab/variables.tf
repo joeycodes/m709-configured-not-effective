@@ -10,8 +10,8 @@ variable "subscription_id" {
 
 variable "location" {
   type        = string
-  description = "Azure region. Constrained to five regions by a subscription-scoped policy; westus is the closest permitted one (ADR D2)."
-  default     = "westus"
+  description = "Azure region. No longer constrained by policy (ADR D16); canadaeast is the region where the required VM sizes are both available and in quota (ADR D15)."
+  default     = "canadaeast"
 }
 
 variable "project" {
@@ -44,4 +44,17 @@ variable "admin_ssh_public_key" {
     condition     = startswith(var.admin_ssh_public_key, "ssh-ed25519 ")
     error_message = "must be the contents of an Ed25519 .pub file (starts with 'ssh-ed25519 '), not a path or a private key."
   }
+}
+
+# current generations; earlier generations are not available to student subscription
+variable "nva_vm_size" {
+  type        = string
+  description = "Size of the hub NVA VM."
+  default     = "Standard_D2s_v6"
+}
+
+variable "endpoint_vm_size" {
+  type        = string
+  description = "Size of the spoke endpoint VMs."
+  default     = "Standard_D2ls_v6"
 }

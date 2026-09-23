@@ -38,7 +38,7 @@ resource "azurerm_linux_virtual_machine" "spoke" {
   name                = "vm-cne-${each.key}"
   resource_group_name = azurerm_resource_group.lab.name
   location            = azurerm_resource_group.lab.location
-  size                = "Standard_B1s"
+  size                = var.endpoint_vm_size
   admin_username      = "azureuser"
   tags                = local.common_tags
 
@@ -69,7 +69,7 @@ resource "azurerm_linux_virtual_machine" "hub" {
   name                = "vm-cne-hub"
   resource_group_name = azurerm_resource_group.lab.name
   location            = azurerm_resource_group.lab.location
-  size                = "Standard_B2ls_v2"
+  size                = var.nva_vm_size
   admin_username      = "azureuser"
   tags                = local.common_tags
 
