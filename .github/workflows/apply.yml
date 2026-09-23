@@ -44,6 +44,7 @@ jobs:
       ARM_TENANT_ID:       ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       ARM_USE_OIDC:        true
+      TF_VAR_admin_ssh_public_key: ${{ vars.LAB_SSH_PUBLIC_KEY }}
 
     steps:
       - uses: actions/checkout@v4

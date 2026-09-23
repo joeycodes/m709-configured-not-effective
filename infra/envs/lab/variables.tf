@@ -36,3 +36,12 @@ variable "enable_firewall" {
   EOT
   default     = false
 }
+
+variable "admin_ssh_public_key" {
+  type        = string
+  description = "Ed25519 public key (the key itself, not a path). Break-glass only; routine access uses run-command."
+  validation {
+    condition     = startswith(var.admin_ssh_public_key, "ssh-ed25519 ")
+    error_message = "must be the contents of an Ed25519 .pub file (starts with 'ssh-ed25519 '), not a path or a private key."
+  }
+}
