@@ -1,0 +1,40 @@
+### 2026-09-23
+### test: with IP forwarding disabled on the NVA NIC the traffic fails, while the NVA still reports ip_forward=1 and counts the packets as accepted — the discard is in the fabric, on egress
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "nft list chain inet filter forward" --query "value[0].message" -o tsv
+### cmd: az network nic update -g $RG -n nic-cne-hub --ip-forwarding false -o none
+### cmd: az vm run-command invoke -g $RG -n vm-cne-tier2 --command-id RunShellScript --scripts "ping -c3 -W2 $T0; echo exit=\$?" --query "value[0].message" -o tsv
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "sysctl net.ipv4.ip_forward; nft list chain inet filter forward" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+table inet filter {
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		ct state established,related accept
+		ct state invalid drop
+		ip saddr @allowed_v4 counter packets 0 bytes 0 accept
+		counter packets 0 bytes 0 log prefix "fwd-drop: " drop
+	}
+}
+
+Enable succeeded:
+[stdout]
+PING 10.101.0.4 (10.101.0.4) 56(84) bytes of data.
+
+--- 10.101.0.4 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2072ms
+
+exit=1
+
+Enable succeeded:
+[stdout]
+net.ipv4.ip_forward = 1
+table inet filter {
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		ct state established,related accept
+		ct state invalid drop
+		ip saddr @allowed_v4 counter packets 3 bytes 252 accept
+		counter packets 0 bytes 0 log prefix "fwd-drop: " drop
+	}
+}

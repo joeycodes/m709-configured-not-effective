@@ -1,0 +1,26 @@
+### 2026-09-23
+### test: the denied packets are accounted to that rule (3 x 84 bytes), and reloading the service returns the ruleset to the file-defined state
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "nft list chain inet filter forward; systemctl restart nftables; echo '--- restored ---'; nft list chain inet filter forward" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+table inet filter {
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter packets 3 bytes 252 drop
+		ct state established,related accept
+		ct state invalid drop
+		ip saddr @allowed_v4 counter packets 6 bytes 1920 accept
+		counter packets 0 bytes 0 log prefix "fwd-drop: " drop
+	}
+}
+--- restored ---
+table inet filter {
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		ct state established,related accept
+		ct state invalid drop
+		ip saddr @allowed_v4 counter packets 0 bytes 0 accept
+		counter packets 0 bytes 0 log prefix "fwd-drop: " drop
+	}
+}

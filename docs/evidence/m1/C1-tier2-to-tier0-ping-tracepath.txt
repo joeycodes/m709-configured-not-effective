@@ -1,0 +1,25 @@
+### 2026-09-23
+### test: tier-2 reaches tier-0 and the path passes through the NVA — one TTL decrement, first hop 10.100.2.4
+### cmd: az vm run-command invoke -g $RG -n vm-cne-tier2 --command-id RunShellScript --scripts "ping -c3 -W2 $T0; echo ---; traceroute -n -w1 -m5 $T0 || tracepath -n $T0" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 10.101.0.4 (10.101.0.4) 56(84) bytes of data.
+64 bytes from 10.101.0.4: icmp_seq=1 ttl=63 time=7.73 ms
+64 bytes from 10.101.0.4: icmp_seq=2 ttl=63 time=4.97 ms
+64 bytes from 10.101.0.4: icmp_seq=3 ttl=63 time=17.8 ms
+
+--- 10.101.0.4 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 4.965/10.172/17.826/5.528 ms
+---
+ 1?: [LOCALHOST]                      pmtu 1500
+ 1:  10.100.2.4                                           18.915ms
+ 1:  10.100.2.4                                           22.025ms
+ 2:  10.101.0.4                                           20.532ms reached
+     Resume: pmtu 1500 hops 2 back 2
+
+[stderr]
+/var/lib/waagent/run-command/download/5/script.sh: 1: n: not found
+/var/lib/waagent/run-command/download/5/script.sh: 2: traceroute: not found
+/var/lib/waagent/run-command/download/5/script.sh: 3: n: not found

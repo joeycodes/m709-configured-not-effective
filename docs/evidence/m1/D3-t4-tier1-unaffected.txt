@@ -1,0 +1,17 @@
+### 2026-09-23
+### test: the denial is directed and not a loss of forwarding — tier-1 to tier-0 is unaffected by the same rule
+### cmd: az vm run-command invoke -g $RG -n vm-cne-tier1 --command-id RunShellScript --scripts "ping -c3 -W2 $T0; echo exit=\$?" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 10.101.0.4 (10.101.0.4) 56(84) bytes of data.
+64 bytes from 10.101.0.4: icmp_seq=1 ttl=63 time=12.7 ms
+64 bytes from 10.101.0.4: icmp_seq=2 ttl=63 time=1.49 ms
+64 bytes from 10.101.0.4: icmp_seq=3 ttl=63 time=7.19 ms
+
+--- 10.101.0.4 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 1.494/7.129/12.708/4.578 ms
+exit=0
+
+[stderr]

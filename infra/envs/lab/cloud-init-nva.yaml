@@ -35,8 +35,8 @@ write_files:
  
         chain forward {
           type filter hook forward priority 0; policy drop;
-          ct state established,related accept
-          ct state invalid drop
+          ct state established,related counter accept
+          ct state invalid counter drop
           ip saddr @allowed_v4 counter accept
           counter log prefix "fwd-drop: " drop
         }
