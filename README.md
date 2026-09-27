@@ -10,11 +10,14 @@ The guiding idea: **configured does not mean effective.**
 
 Two domains — a simulated on-premises site and Azure — joined by an IPsec tunnel running eBGP. On-premises is a single edge router (FRRouting + StrongSwan) standing in for a customer edge device. Azure is a hub-and-spoke of four virtual networks: a hub carrying the tunnel endpoint and the firewall, and three spokes as trust tiers (restricted, application, low-trust). Routing forces all inter-spoke and outbound traffic through the hub firewall; the restricted tier denies egress by default. Everything is deployed as code and gated in CI.
 
+![Infrastructure](./docs/diagrams/CNE-M1-Infrastructure.png)
+
 See [`docs/diagrams`](docs/diagrams) for the topology and [`docs/TECHNICAL-DESIGN.md`](docs/TECHNICAL-DESIGN.md) for the full design.
 
 ## Pipeline
 
 1. **Prevent** — policy-as-code (OPA/Rego, Checkov, tfsec) blocks non-compliant Terraform in CI before it deploys.
+![CICD](./docs/diagrams/CNE-M1-CICD.png)
 2. **Detect** — detection logic authored on Azure-native telemetry (Sentinel/KQL, flow logs, firewall and DNS logs). No third-party SIEM.
 3. **Attack** — adversary emulation (CALDERA, Atomic Red Team, stratus-red-team) mapped to MITRE ATT&CK, plus manual technique, under an assume-breach model.
 4. **Validate** — for every scenario, record whether the control held and whether the failure was detected; engineer detections for the gaps and re-test until they fire.
