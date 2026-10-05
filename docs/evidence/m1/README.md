@@ -20,7 +20,7 @@ difference between two readings, and none of them depends on the absolute value.
 | A1 | The NVA is configured as intended at both layers | `cloud-init status: done`, `nft` present and active, `net.ipv4.ip_forward = 1`, forward chain loaded | all four hold; counters at zero | `A1-nva-cloudinit-nft-sysctl.txt` |
 | B1 | The route table redirects tier-to-tier traffic only | `10.100.0.0/14` → `VirtualAppliance` `10.100.2.4` (source `User`); own VNet and hub keep their system routes | holds; `10.103.0.0/16` stays `VnetLocal`, `10.100.0.0/16` stays `VNetPeering` | `B1-effective-routes-tier2.txt` |
 | C1 | tier-2 reaches tier-0, and the path is through the NVA | reachable; one TTL decrement; first hop `10.100.2.4` | 3/3 received, `ttl=63`, `tracepath` hop 1 `10.100.2.4`, hop 2 the target | `C1-tier2-to-tier0-ping-tracepath.txt` |
-| C2 | The traffic is accounted for on the NVA, not merely reachable | forward-chain accept counter rises from zero | observed at 2 packets, raw output not retained — see *Gaps* | — |
+| C2 | The traffic is accounted for on the NVA, not merely reachable | forward-chain accept counter rises across the ping | 3 → 4 packets, 1668 → 1752 bytes: a difference of 1 packet / 84 bytes, the first echo request of the new flow; the rest matched the uncounted `ct state` rule — see *Gaps* | `C2-nva-counters-after-t2.txt` |
 | D1 | A deny rule can be placed ahead of the stateful accept | rule at the head of the chain, before `ct state established` | inserted as handle 14, first in chain | `D1-t4-rule-inserted.txt` |
 | D2 | The NVA denies tier-2 → tier-0 while the rule is present | no reply | 3 transmitted, 0 received, 100% loss, `exit=1` | `D2-t4-tier2-blocked.txt` |
 | D3 | The denial is directed, not a loss of forwarding | tier-1 → tier-0 unaffected | 3/3 received, `exit=0` | `D3-t4-tier1-unaffected.txt` |
@@ -61,9 +61,6 @@ observed at the destination.
 
 ## Gaps
 
-- **C2 was not retained.** The counter was read as 2 packets during the run but
-  the raw output was not captured. Re-run C1 and capture the counter read in the
-  same sequence before treating C2 as evidence.
 - **The counters under-report.** `ct state established,related accept` and
   `ct state invalid drop` carry no counter, so the accept counter records the
   first packet of each new flow rather than every forwarded packet — which is
