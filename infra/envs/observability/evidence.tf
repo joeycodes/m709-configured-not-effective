@@ -1,9 +1,13 @@
 resource "azurerm_storage_account" "evidence" {
+  #checkov:skip=CKV_AZURE_59:Public endpoint kept for CI runners and the workstation, which have no private path; access is Entra-only. Known gap, ADR D17
+  #checkov:skip=CKV2_AZURE_33:Private endpoint not deployed; no persistent VNet exists to host it and the lab VNets are destroyed nightly. ADR D17
+  #checkov:skip=CKV2_AZURE_1:Microsoft-managed keys with infrastructure encryption; customer-managed keys address a threat outside this project's model
+  #checkov:skip=CKV_AZURE_33:Queue service is not used by this account
   name                              = "sacneevidence"
   resource_group_name               = azurerm_resource_group.observability.name
   location                          = azurerm_resource_group.observability.location
   account_tier                      = "Standard"
-  account_replication_type          = "LRS"
+  account_replication_type          = "GRS"
   min_tls_version                   = "TLS1_2"
   https_traffic_only_enabled        = true
   shared_access_key_enabled         = false
@@ -32,6 +36,7 @@ resource "azurerm_storage_account" "evidence" {
 }
 
 resource "azurerm_storage_container" "evidence" {
+  #checkov:skip=CKV2_AZURE_21:Blob read logging is part of the resource-log sources connected in M2 week 7
   name                  = "evidence"
   storage_account_id    = azurerm_storage_account.evidence.id
   container_access_type = "private"

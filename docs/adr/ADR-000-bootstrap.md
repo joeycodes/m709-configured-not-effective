@@ -813,7 +813,9 @@ A new Terraform root, `infra/envs/observability`, holds a persistent layer:
   The export is not charged and the volume is small, and a category left out
   is found missing only when it is needed.
 - **Evidence storage account** `sacneevidence`, in `canadaeast` because VNet flow
-  logs require the storage account and the VNet to share a region. Shared key,
+  logs require the storage account and the VNet to share a region. Replicated
+  `GRS`: unlike the state file (D6), evidence cannot be rebuilt from code, and
+  `canadaeast` has no availability zones, so `ZRS` is not an option. Shared key,
   local users and public blob access are disabled; blob versioning and 30-day
   soft delete for blobs and containers are enabled; infrastructure encryption is
   on, which cannot be changed after creation.
@@ -847,6 +849,16 @@ A new Terraform root, `infra/envs/observability`, holds a persistent layer:
 - (−) The CI identity holds `Contributor`, which cannot create role assignments.
   Granting the NVA or the author data-plane access to the evidence container
   will be a manual step, recorded when it is taken.
+- Five Checkov findings are accepted as inline exceptions, each with its reason
+  in the resource block, following D14: public network access (`CKV_AZURE_59`)
+  and no private endpoint (`CKV2_AZURE_33`), both the known gap above;
+  Microsoft-managed rather than customer-managed keys (`CKV2_AZURE_1`), since the
+  threat a customer-managed key addresses is outside this project's model and
+  infrastructure encryption is already on; queue logging (`CKV_AZURE_33`), for a
+  queue service this account does not use; and blob read logging
+  (`CKV2_AZURE_21`), which is deferred to the resource-log sources connected in
+  M2 week 7. That last one is the only one with real value: it would record who
+  read or wrote the evidence, which is the evidence's chain of custody.
 - `plan-observability` is not yet a required check; it will be added to the
   ruleset once it has run green.
 
