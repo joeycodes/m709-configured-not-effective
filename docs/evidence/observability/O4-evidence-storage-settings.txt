@@ -1,0 +1,100 @@
+### 2026-10-05
+### test: the evidence account is deployed as configured, and shared-key access is refused when attempted
+### note: (d) was predicted to fail and succeeded. Listing containers is authorised by a control-plane Action, which Owner holds; it is not a test of access to the data. (e) is the test that is: listing blobs requires a DataAction. (f) shows that neither the author nor the CI identity holds a data role on this account.
+
+### (a) account properties
+### cmd: az storage account show -g rg-cne-observability -n sacneevidence --query "{sku:sku.name, location:location, sharedKey:allowSharedKeyAccess, publicBlob:allowBlobPublicAccess, infraEncryption:encryption.requireInfrastructureEncryption, localUsers:isLocalUserEnabled}"
+
+{
+  "infraEncryption": true,
+  "localUsers": false,
+  "location": "canadaeast",
+  "publicBlob": false,
+  "sharedKey": false,
+  "sku": "Standard_GRS"
+}
+
+### (b) blob service properties
+### cmd: az storage account blob-service-properties show -g rg-cne-observability --account-name sacneevidence --query "{versioning:isVersioningEnabled, blobSoftDelete:deleteRetentionPolicy, containerSoftDelete:containerDeleteRetentionPolicy}"
+
+{
+  "blobSoftDelete": {
+    "allowPermanentDelete": false,
+    "days": 30,
+    "enabled": true
+  },
+  "containerSoftDelete": {
+    "allowPermanentDelete": null,
+    "days": 30,
+    "enabled": true
+  },
+  "versioning": true
+}
+
+### (c) negative test: data-plane access with the account key
+### cmd: az storage container list --account-name sacneevidence --auth-mode key
+
+There are no credentials provided in your command and environment, we will query for account key for your storage account.
+It is recommended to provide --connection-string, --account-key or --sas-token in your command as credentials.
+
+You also can add `--auth-mode login` in your command to use Azure Active Directory (Azure AD) for authorization if your login account is assigned required RBAC roles.
+For more information about RBAC roles in storage, visit https://learn.microsoft.com/azure/storage/common/storage-auth-aad-rbac-cli.
+
+In addition, setting the corresponding environment variables can avoid inputting credentials in your command. Please use --help to get more information about environment variable usage.
+Key based authentication is not permitted on this storage account.
+RequestId:9cbba98a-701e-0063-7e52-55fc1b000000
+Time:2026-10-06T05:22:09.3140968Z
+ErrorCode:KeyBasedAuthenticationNotPermitted
+
+### (d) data-plane access with the author's Entra identity
+### cmd: az storage container list --account-name sacneevidence --auth-mode login
+
+[
+  {
+    "deleted": null,
+    "encryptionScope": {
+      "defaultEncryptionScope": "$account-encryption-key",
+      "preventEncryptionScopeOverride": false
+    },
+    "immutableStorageWithVersioningEnabled": false,
+    "metadata": null,
+    "name": "evidence",
+    "properties": {
+      "etag": "\"0x8DF235E4F61180D\"",
+      "hasImmutabilityPolicy": false,
+      "hasLegalHold": false,
+      "lastModified": "2026-10-06T04:00:07+00:00",
+      "lease": {
+        "duration": null,
+        "state": "available",
+        "status": "unlocked"
+      },
+      "publicAccess": null
+    },
+    "version": null
+  }
+]
+
+### (e) negative test: reading the contents of the container with the author's Entra identity
+### cmd: az storage blob list --account-name sacneevidence -c evidence --auth-mode login
+
+You do not have the required permissions needed to perform this operation.
+Depending on your operation, you may need to be assigned one of the following roles:
+    "Storage Blob Data Owner"
+    "Storage Blob Data Contributor"
+    "Storage Blob Data Reader"
+    "Storage Queue Data Contributor"
+    "Storage Queue Data Reader"
+    "Storage Table Data Contributor"
+    "Storage Table Data Reader"
+
+If you want to use the old authentication method and allow querying for the right account key, please use the "--auth-mode" parameter and "key" value.
+
+### (f) every storage data-role assignment in the subscription
+### note: f9ff0810-… is the author (az ad signed-in-user show --query id); 596978ed-… is the CI service principal.
+### cmd: az role assignment list --all --query "[?contains(roleDefinitionName,'Storage')].{role:roleDefinitionName, scope:scope, principalType:principalType, principalId:principalId}" -o table
+
+Role                           Scope                                                                                                                                       PrincipalType     PrincipalId
+-----------------------------  ------------------------------------------------------------------------------------------------------------------------------------------  ----------------  ------------------------------------
+Storage Blob Data Contributor  /subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-tfstate/providers/Microsoft.Storage/storageAccounts/sajianstutfstate  User              f9ff0810-63e8-4bba-ae44-54968b794bab
+Storage Blob Data Contributor  /subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-tfstate/providers/Microsoft.Storage/storageAccounts/sajianstutfstate  ServicePrincipal  596978ed-9d28-4540-8b47-2ac8911742cc

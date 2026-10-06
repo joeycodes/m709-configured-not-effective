@@ -1,0 +1,11 @@
+### 2026-10-05
+### test: the workspace is deployed as configured — SKU, 90-day retention, 1 GB daily cap, local (shared-key) authentication disabled, region
+### cmd: az monitor log-analytics workspace show -g rg-cne-observability -n log-cne-observability --query "{sku:sku.name, retention:retentionInDays, capGb:workspaceCapping.dailyQuotaGb, localAuthDisabled:features.disableLocalAuth, location:location}"
+
+{
+  "capGb": 1.0,
+  "localAuthDisabled": true,
+  "location": "canadaeast",
+  "retention": 90,
+  "sku": "PerGB2018"
+}

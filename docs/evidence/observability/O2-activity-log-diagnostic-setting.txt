@@ -1,0 +1,20 @@
+### 2026-10-05
+### test: the subscription Activity Log is exported to the workspace, all eight categories enabled
+### cmd: az monitor diagnostic-settings subscription list --query "value[].{name:name, workspace:workspaceId, categories:logs[?enabled].category}"
+
+[
+  {
+    "categories": [
+      "Security",
+      "Autoscale",
+      "Alert",
+      "Policy",
+      "Recommendation",
+      "Administrative",
+      "ResourceHealth",
+      "ServiceHealth"
+    ],
+    "name": "diag-activity-log",
+    "workspace": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-observability/providers/Microsoft.OperationalInsights/workspaces/log-cne-observability"
+  }
+]

@@ -849,6 +849,11 @@ A new Terraform root, `infra/envs/observability`, holds a persistent layer:
 - (−) The CI identity holds `Contributor`, which cannot create role assignments.
   Granting the NVA or the author data-plane access to the evidence container
   will be a manual step, recorded when it is taken.
+- (−) `Owner` and `Contributor` cannot read or write blobs, but container
+  operations are control-plane Actions, so both can list the evidence container
+  (verified, O4) and, under the same permission, delete it (not tested). The CI
+  identity is `Contributor`. Container soft delete is the only protection at
+  that level.
 - Five Checkov findings are accepted as inline exceptions, each with its reason
   in the resource block, following D14: public network access (`CKV_AZURE_59`)
   and no private endpoint (`CKV2_AZURE_33`), both the known gap above;
@@ -886,9 +891,20 @@ A new Terraform root, `infra/envs/observability`, holds a persistent layer:
   Agent is introduced in M2, if a persistent VNet exists by then.
 
 **Verification**
-Pending the first CI apply. O1–O5 to be recorded then: workspace settings,
-diagnostic setting, data actually arriving in `AzureActivity`, storage account
-settings, and the layer surviving a nightly destroy.
+Applied by CI on 2026-10-05 (2026-10-06 03:58 UTC). Evidence and method are in
+`docs/evidence/observability/`.
+
+| ID | Assertion | Result |
+|----|-----------|--------|
+| O1 | Workspace deployed as configured | `PerGB2018`, 90 days, 1 GB cap, local auth disabled |
+| O2 | Activity Log exported, eight categories | holds |
+| O3 | Data is arriving in `AzureActivity` | 499 rows within the first 70 minutes; none earlier than the apply |
+| O4 | Evidence account deployed as configured; access controls hold | settings hold; key access refused; blob access refused for the subscription Owner |
+| O5 | Layer survives a lab teardown | holds (manual run of the destroy workflow) |
+
+Merging this change also ran the lab's `apply.yml` once, because the change
+edited that workflow file and the file is in its own path filter. It rebuilt the
+lab. Later changes confined to this root do not trigger it.
 
 ---
 
