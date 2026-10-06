@@ -1,0 +1,16 @@
+### 2026-10-05
+### test: tier-2 pings tier-0 three times, with no other traffic sent, so the counters can be reconciled against exactly six packets
+### cmd: az vm run-command invoke -g $RG -n vm-cne-tier2 --command-id RunShellScript --scripts "ping -c3 -W2 $T0" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 10.101.0.4 (10.101.0.4) 56(84) bytes of data.
+64 bytes from 10.101.0.4: icmp_seq=1 ttl=63 time=21.2 ms
+64 bytes from 10.101.0.4: icmp_seq=2 ttl=63 time=4.94 ms
+64 bytes from 10.101.0.4: icmp_seq=3 ttl=63 time=8.56 ms
+
+--- 10.101.0.4 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2002ms
+rtt min/avg/max/mdev = 4.942/11.580/21.243/6.989 ms
+
+[stderr]

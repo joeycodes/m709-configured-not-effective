@@ -1,0 +1,6 @@
+### 2026-10-05
+### test: drift is introduced out of band — IP forwarding disabled on the NVA NIC and not restored by hand
+### cmd: az network nic update -g $RG -n nic-cne-hub --ip-forwarding false
+### cmd: az network nic show -g $RG -n nic-cne-hub --query enableIPForwarding
+
+false
