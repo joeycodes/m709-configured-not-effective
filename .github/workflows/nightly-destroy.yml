@@ -4,7 +4,8 @@
 # What it cannot: anything else. rg-tfstate and the state file itself were
 # created by hand during bootstrap and live outside this state, so they are
 # structurally out of reach rather than merely excluded by a filter
-# (docs/adr/ADR-000-bootstrap.md, D1 and D12).
+# (docs/adr/ADR-000-bootstrap.md, D1 and D12). The observability layer is
+# out of reach for the same reason: it is recorded in a different state file.
 #
 # -auto-approve carries no review here, unlike apply.yml where a human read
 # the plan on a pull request. It is accepted because this layer is designed
@@ -12,7 +13,7 @@
 # losing it costs a pipeline run rather than any data.
 #
 # To rebuild after a teardown: run the Terraform apply workflow manually
-# (workflow_dispatch), or merge any change under infra/.
+# (workflow_dispatch), or merge any change under infra/envs/lab/.
 #
 # Resources created outside Terraform are invisible to this workflow and keep
 # accruing cost. Compare `az resource list --tag layer=ephemeral` against

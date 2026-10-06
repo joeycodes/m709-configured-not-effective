@@ -9,15 +9,15 @@
 # in M2; when it does, it is added as `environment: production` on the
 # job below, and the federated credential is narrowed to match.
 
-name: Terraform apply
+name: Terraform apply (observability)
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - 'infra/envs/lab/**'
-      - '.github/workflows/apply.yml'
+      - 'infra/envs/observability/**'
+      - '.github/workflows/apply-observability.yml'
 
 permissions:
   id-token: write
@@ -27,7 +27,7 @@ permissions:
 # lease would make the second one fail rather than corrupt anything, but
 # queuing them is tidier than relying on a failure.
 concurrency:
-  group: terraform-lab-state
+  group: terraform-observability-state
   cancel-in-progress: false
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: infra/envs/lab
+        working-directory: infra/envs/observability
         shell: bash
 
     env:
@@ -44,7 +44,6 @@ jobs:
       ARM_TENANT_ID:       ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       ARM_USE_OIDC:        true
-      TF_VAR_admin_ssh_public_key: ${{ vars.LAB_SSH_PUBLIC_KEY }}
 
     steps:
       - uses: actions/checkout@v4
