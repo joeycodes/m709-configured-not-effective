@@ -1,0 +1,55 @@
+### 2026-10-05
+### test: data is actually arriving in AzureActivity, not merely configured to — and the export is not retroactive
+### note: all times below are UTC. $WS is the workspace customerId.
+### note: the first attempt at query (a) named a column `first`, a KQL reserved word, and was rejected by the parser (SYN0002) before reaching any data; re-run with the column names below.
+### note: Caller is deliberately not projected in (b); for a user it is an e-mail address.
+
+### (a) events per category
+### cmd: az monitor log-analytics query -w $WS --analytics-query "AzureActivity | summarize events=count(), firstSeen=min(TimeGenerated), lastSeen=max(TimeGenerated) by CategoryValue" -o table
+
+CategoryValue    TableName      Events    FirstSeen                     LastSeen
+---------------  -------------  --------  ----------------------------  ----------------------------
+Administrative   PrimaryResult  324       2026-10-06T03:58:21.0106858Z  2026-10-06T05:08:51.4010456Z
+Policy           PrimaryResult  160       2026-10-06T03:58:48.2840955Z  2026-10-06T04:10:42.6341047Z
+ResourceHealth   PrimaryResult  15        2026-10-06T03:59:40.107Z      2026-10-06T05:02:58.403Z
+
+### (b) every network-interface write, by kind of caller
+### cmd: az monitor log-analytics query -w $WS --analytics-query "AzureActivity | where OperationNameValue =~ 'MICROSOFT.NETWORK/NETWORKINTERFACES/WRITE' | project TimeGenerated, callerKind=iff(Caller contains '@','user','app'), ActivityStatusValue, ResourceGroup | order by TimeGenerated asc" -o table
+
+ActivityStatusValue    ResourceGroup    TableName      TimeGenerated                 CallerKind
+---------------------  ---------------  -------------  ----------------------------  ------------
+Start                  RG-CNE-LAB       PrimaryResult  2026-10-06T03:59:23.2531345Z  app
+Success                RG-CNE-LAB       PrimaryResult  2026-10-06T03:59:23.4249626Z  app
+Start                  RG-CNE-LAB       PrimaryResult  2026-10-06T03:59:23.6149424Z  app
+Success                RG-CNE-LAB       PrimaryResult  2026-10-06T03:59:23.8492327Z  app
+Start                  RG-CNE-LAB       PrimaryResult  2026-10-06T03:59:23.9759501Z  app
+Success                RG-CNE-LAB       PrimaryResult  2026-10-06T03:59:24.1635612Z  app
+Start                  RG-CNE-LAB       PrimaryResult  2026-10-06T03:59:24.1844567Z  app
+Success                RG-CNE-LAB       PrimaryResult  2026-10-06T03:59:24.4345131Z  app
+Success                RG-CNE-LAB       PrimaryResult  2026-10-06T04:09:23.640887Z   app
+Success                RG-CNE-LAB       PrimaryResult  2026-10-06T04:09:24.4542757Z  app
+Success                RG-CNE-LAB       PrimaryResult  2026-10-06T04:09:24.5532268Z  app
+Success                RG-CNE-LAB       PrimaryResult  2026-10-06T04:09:24.7851707Z  app
+Start                  RG-CNE-LAB       PrimaryResult  2026-10-06T04:34:25.7269508Z  user
+Accept                 RG-CNE-LAB       PrimaryResult  2026-10-06T04:34:25.9925915Z  user
+Success                RG-CNE-LAB       PrimaryResult  2026-10-06T04:34:30.0582637Z  user
+Start                  RG-CNE-LAB       PrimaryResult  2026-10-06T04:35:48.5017707Z  app
+Accept                 RG-CNE-LAB       PrimaryResult  2026-10-06T04:35:48.6587058Z  app
+Success                RG-CNE-LAB       PrimaryResult  2026-10-06T04:35:51.2518947Z  app
+
+### (c) who wrote at 04:09, after the lab apply had finished at 04:02
+### cmd: az monitor log-analytics query -w $WS --analytics-query "AzureActivity | where OperationNameValue =~ 'MICROSOFT.NETWORK/NETWORKINTERFACES/WRITE' | where TimeGenerated between (datetime(2026-10-06T04:09:00Z) .. datetime(2026-10-06T04:10:00Z)) | project TimeGenerated, Caller, appid=tostring(parse_json(Claims).appid), _ResourceId" -o table
+
+Caller                                TableName      TimeGenerated                 _ResourceId                                                                                                                                Appid
+------------------------------------  -------------  ----------------------------  -----------------------------------------------------------------------------------------------------------------------------------------  ------------------------------------
+596978ed-9d28-4540-8b47-2ac8911742cc  PrimaryResult  2026-10-06T04:09:23.640887Z   /subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourcegroups/rg-cne-lab/providers/microsoft.network/networkinterfaces/nic-cne-tier2  8d9d812c-5252-43c3-bbec-30c1b57ba9f5
+596978ed-9d28-4540-8b47-2ac8911742cc  PrimaryResult  2026-10-06T04:09:24.7851707Z  /subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourcegroups/rg-cne-lab/providers/microsoft.network/networkinterfaces/nic-cne-tier0  8d9d812c-5252-43c3-bbec-30c1b57ba9f5
+596978ed-9d28-4540-8b47-2ac8911742cc  PrimaryResult  2026-10-06T04:09:24.4542757Z  /subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourcegroups/rg-cne-lab/providers/microsoft.network/networkinterfaces/nic-cne-tier1  8d9d812c-5252-43c3-bbec-30c1b57ba9f5
+596978ed-9d28-4540-8b47-2ac8911742cc  PrimaryResult  2026-10-06T04:09:24.5532268Z  /subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourcegroups/rg-cne-lab/providers/microsoft.network/networkinterfaces/nic-cne-hub    8d9d812c-5252-43c3-bbec-30c1b57ba9f5
+
+### (d) the 03:59 and 04:09 records belong to one call chain
+### cmd: az monitor log-analytics query -w $WS --analytics-query "AzureActivity | where OperationNameValue =~ 'MICROSOFT.NETWORK/NETWORKINTERFACES/WRITE' and TimeGenerated < datetime(2026-10-06T04:10:00Z) | summarize records=count(), statuses=make_set(ActivityStatusValue), firstSeen=min(TimeGenerated), lastSeen=max(TimeGenerated) by CorrelationId, Resource" -o table
+
+CorrelationId                         Resource    TableName      FirstSeen                     LastSeen                      Records    Statuses
+------------------------------------  ----------  -------------  ----------------------------  ----------------------------  ---------  -------------------
+95b3fa32-2b07-5d59-6b69-6620dd3c2b80              PrimaryResult  2026-10-06T03:59:23.2531345Z  2026-10-06T04:09:24.7851707Z  12         ["Start","Success"]

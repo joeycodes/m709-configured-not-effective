@@ -1,0 +1,19 @@
+### 2026-10-05
+### test: the layer survives a teardown of the lab — after the destroy workflow, rg-cne-lab is gone and rg-cne-observability and its resources remain
+### note: the destroy was triggered by hand (workflow_dispatch), not by the nightly schedule; it is the same workflow.
+
+### cmd: gh run list --workflow nightly-destroy.yml --limit 1
+
+STATUS  TITLE                      WORKFLOW                   BRANCH  EVENT              ID           ELAPSED  AGE
+✓       Terraform nightly destroy  Terraform nightly destroy  main    workflow_dispatch  37416544875  2m59s    about 21 minutes ago
+
+### cmd: az group list --query "[?starts_with(name,'rg-cne')].name" -o tsv
+
+rg-cne-observability
+
+### cmd: az resource list -g rg-cne-observability --query "[].{name:name, type:type}" -o table
+
+Name
+---------------------
+sacneevidence
+log-cne-observability
