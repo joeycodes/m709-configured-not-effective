@@ -13,6 +13,10 @@ identical traffic, because packets that previously matched an uncounted rule are
 now counted. Every comparison recorded below is zero against non-zero, or a
 difference between two readings, and none of them depends on the absolute value.
 
+C3–C5 and F2–F4 were taken on 2026-10-05 against a full rebuild from the same
+configuration, with those counters in place. They close two of the gaps listed
+at the end and leave the earlier readings as they were recorded.
+
 ## Assertions
 
 | ID | Assertion | Expected | Observed | File |
@@ -21,12 +25,14 @@ difference between two readings, and none of them depends on the absolute value.
 | B1 | The route table redirects tier-to-tier traffic only | `10.100.0.0/14` → `VirtualAppliance` `10.100.2.4` (source `User`); own VNet and hub keep their system routes | holds; `10.103.0.0/16` stays `VnetLocal`, `10.100.0.0/16` stays `VNetPeering` | `B1-effective-routes-tier2.txt` |
 | C1 | tier-2 reaches tier-0, and the path is through the NVA | reachable; one TTL decrement; first hop `10.100.2.4` | 3/3 received, `ttl=63`, `tracepath` hop 1 `10.100.2.4`, hop 2 the target | `C1-tier2-to-tier0-ping-tracepath.txt` |
 | C2 | The traffic is accounted for on the NVA, not merely reachable | forward-chain accept counter rises across the ping | 3 → 4 packets, 1668 → 1752 bytes: a difference of 1 packet / 84 bytes, the first echo request of the new flow; the rest matched the uncounted `ct state` rule — see *Gaps* | `C2-nva-counters-after-t2.txt` |
+| C3–C5 | Every forwarded packet is accounted for, once both `ct` rules carry counters | 3 echo requests and 3 replies: 1 packet on the allow rule (the new flow), 5 on `ct state established` | all counters zero before; after, allow 1 packet / 84 bytes and established 5 packets / 420 bytes — 6 packets / 504 bytes (= 6 × 84); `invalid` and the final drop stay at zero | `C3-nva-counters-baseline.txt`, `C4-t2-ping-accounted.txt`, `C5-nva-counters-after.txt` |
 | D1 | A deny rule can be placed ahead of the stateful accept | rule at the head of the chain, before `ct state established` | inserted as handle 14, first in chain | `D1-t4-rule-inserted.txt` |
 | D2 | The NVA denies tier-2 → tier-0 while the rule is present | no reply | 3 transmitted, 0 received, 100% loss, `exit=1` | `D2-t4-tier2-blocked.txt` |
 | D3 | The denial is directed, not a loss of forwarding | tier-1 → tier-0 unaffected | 3/3 received, `exit=0` | `D3-t4-tier1-unaffected.txt` |
 | D4 | The denial is attributable to that rule, and is reversible | drop counter accounts for exactly the denied packets; ruleset returns to the file-defined state | drop 3 packets / 252 bytes (= 3 × 84, the ICMP echo requests); accept 6 packets; after `systemctl restart nftables` the rule is gone and counters are zero | `D4-t4-counters-and-restore.txt` |
 | E  | Forwarding requires both the fabric and the kernel | with `ip_forwarding_enabled` false on the NVA NIC, tier-2 → tier-0 fails | fails (3 transmitted, 0 received, `exit=1`) while the NVA reports `net.ipv4.ip_forward = 1` and its accept counter advances 0 → 3 packets / 252 bytes; restored, the same test returns 3/3 | `E1-t5-ipforward-disabled.txt`, `E2-t5-restored.txt` |
 | F  | The deployed environment matches the configuration | `apply` reports no remaining difference | `No changes` — but see below: the drift had already been undone by hand in E2, so this shows convergence, not reclamation | `F1-apply-after-drift.txt` |
+| F2–F4 | A change made outside the configuration is detected and reverted by `apply` | with `ip_forwarding_enabled` set false by hand and left that way, `apply` plans one in-place change and restores it | NIC reads `false`; plan `0 to add, 1 to change, 0 to destroy` (`ip_forwarding_enabled = false -> true`); `Apply complete! 0 added, 1 changed, 0 destroyed`; NIC reads `true` and tier-2 → tier-0 returns 3/3 | `F2-drift-introduced.txt`, `F3-apply-reclaims-drift.txt`, `F4-restored.txt` |
 
 ## What the numbers mean
 
@@ -55,19 +61,23 @@ discard happens in the fabric, outside the operating system's view and without a
 local log. An operator on the NVA sees a correct configuration and concludes the
 problem is elsewhere.
 
+F2–F4 show the other side of the same fault. While the NIC property was false,
+nothing on the NVA would have reported it; the `plan` did, because it compares
+the configuration with what the platform reports rather than with what the host
+sees. Drift detection covers the layer that host-level accounting cannot.
+
 This is also a caution about the method: the counters are evidence of what the
 host did, not of what was delivered. Where delivery is the claim, it has to be
 observed at the destination.
 
 ## Gaps
 
-- **The counters under-report.** `ct state established,related accept` and
-  `ct state invalid drop` carry no counter, so the accept counter records the
-  first packet of each new flow rather than every forwarded packet — which is
-  why D3's six-packet exchange advanced it by one. The comparisons above are
-  zero-versus-non-zero and are unaffected, but any absolute packet count taken
-  from this ruleset is wrong. Counters are to be added to both `ct` rules in
-  `cloud-init-nva.yaml`.
+- **The counters under-reported — closed.** On 2026-09-23 the two `ct state`
+  rules carried no counter, so the accept counter recorded the first packet of
+  each new flow rather than every forwarded packet; C2's 1 packet / 84 bytes for
+  a six-packet exchange is that defect. Counters were added to both rules in
+  `cloud-init-nva.yaml`, and C3–C5 reconcile the same exchange exactly: 1 + 5 =
+  6 packets, 504 bytes. C2 is kept as the record of the earlier state.
 - **Counters reset on reload.** `systemctl restart nftables` returns the ruleset
   to the file and zeroes every counter, so a reading has to be taken before the
   restore step, not after.
@@ -77,14 +87,11 @@ observed at the destination.
   nothing. C2 was read as a before/after pair for that reason, and a difference
   is in any case a stronger measurement than an absolute value, because it does
   not assume the baseline was zero.
-- **Drift reclamation is not demonstrated.** F was run after the NIC had already
-  been restored by hand at the end of E, so `apply` had nothing to correct and
-  reported `No changes`. That establishes that the deployed environment matches
-  the configuration and that a repeated `apply` is a no-op, which is worth
-  having, but it is a weaker claim than the one the assertion was written for.
-  The test that demonstrates reclamation leaves the change in place — disable
-  `ip_forwarding_enabled` on the NIC, run `apply` without restoring it by hand,
-  and confirm the property is set back — and is the form to use next time.
+- **Drift reclamation was not demonstrated by F — closed.** F was run after the
+  NIC had already been restored by hand, so `apply` had nothing to correct and
+  showed convergence only. F2–F4 repeat the test in the correct form: the change
+  is left in place, `apply` reverts it, and delivery is confirmed by a 3/3
+  ping afterwards.
 - **Rule order is untested.** The deny rule was placed ahead of the stateful
   accept, so it also severed the flow established earlier. Placed after it, the
   same rule would leave existing connections running while appearing identical

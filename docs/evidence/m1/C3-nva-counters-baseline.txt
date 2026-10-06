@@ -1,0 +1,14 @@
+### 2026-10-05
+### test: baseline after a full rebuild with counters on both ct rules — every forward-chain counter reads zero
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "nft list chain inet filter forward"
+
+{
+  "value": [
+    {
+      "code": "ProvisioningState/succeeded",
+      "displayStatus": "Provisioning succeeded",
+      "level": "Info",
+      "message": "Enable succeeded: \n[stdout]\ntable inet filter {\n\tchain forward {\n\t\ttype filter hook forward priority filter; policy drop;\n\t\tct state established,related counter packets 0 bytes 0 accept\n\t\tct state invalid counter packets 0 bytes 0 drop\n\t\tip saddr @allowed_v4 counter packets 0 bytes 0 accept\n\t\tcounter packets 0 bytes 0 log prefix \"fwd-drop: \" drop\n\t}\n}\n\n[stderr]\n"
+    }
+  ]
+}

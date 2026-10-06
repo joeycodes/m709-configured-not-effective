@@ -1,0 +1,23 @@
+### 2026-10-05
+### test: apply detects the drift and reverts it in place, with no manual restore (excerpt of the CI apply log; completed 2026-10-06T04:35:52Z)
+### cmd: gh workflow run apply.yml
+### cmd: gh run view 37414405319 --log
+
+Terraform will perform the following actions:
+
+ # azurerm_network_interface.hub will be updated in-place
+~ resource "azurerm_network_interface" "hub" {
+ id = "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/networkInterfaces/nic-cne-hub"
+~ ip_forwarding_enabled = false -> true
+ name = "nic-cne-hub"
+ tags = {
+ "layer" = "ephemeral"
+ "managed_by" = "terraform"
+ "project" = "configured-not-effective"
+ }
+# (14 unchanged attributes hidden)
+# (1 unchanged block hidden)
+ }
+Plan: 0 to add, 1 to change, 0 to destroy.
+
+Apply complete! Resources: 0 added, 1 changed, 0 destroyed.

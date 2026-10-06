@@ -1,0 +1,17 @@
+### 2026-10-05
+### test: the property is restored and traffic is delivered — configuration and effect both confirmed
+### cmd: az network nic show -g $RG -n nic-cne-hub --query enableIPForwarding
+### cmd: az vm run-command invoke -g $RG -n vm-cne-tier2 --command-id RunShellScript --scripts "ping -c3 -W2 $T0" --query "value[0].message" -o tsv
+
+true
+
+Enable succeeded:
+[stdout]
+PING 10.101.0.4 (10.101.0.4) 56(84) bytes of data.
+64 bytes from 10.101.0.4: icmp_seq=1 ttl=63 time=5.45 ms
+64 bytes from 10.101.0.4: icmp_seq=2 ttl=63 time=7.26 ms
+64 bytes from 10.101.0.4: icmp_seq=3 ttl=63 time=2.56 ms
+
+--- 10.101.0.4 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 2.559/5.087/7.256/1.934 ms
