@@ -27,3 +27,9 @@ output "spoke_vm_names" {
   value       = { for k, vm in azurerm_linux_virtual_machine.spoke : k => vm.name }
   description = "Names of the tier endpoints, used as source and target in the segmentation tests."
 }
+
+output "hub_public_ip" {
+  value       = azurerm_public_ip.hub.ip_address
+  description = "Public IP of the hub VM, the lab's internet egress address and the IPsec endpoint."
+  sensitive   = true
+}

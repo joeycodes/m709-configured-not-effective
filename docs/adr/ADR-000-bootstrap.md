@@ -864,8 +864,8 @@ A new Terraform root, `infra/envs/observability`, holds a persistent layer:
   (`CKV2_AZURE_21`), which is deferred to the resource-log sources connected in
   M2 week 7. That last one is the only one with real value: it would record who
   read or wrote the evidence, which is the evidence's chain of custody.
-- `plan-observability` is not yet a required check; it will be added to the
-  ruleset once it has run green.
+- `plan-observability` was added to the ruleset as a required check; that it
+  blocks a failing change has not yet been tested.
 
 **Alternatives considered**
 - *The same resources inside the lab root, protected by `prevent_destroy`* — the

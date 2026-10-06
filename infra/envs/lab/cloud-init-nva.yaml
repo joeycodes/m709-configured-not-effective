@@ -37,12 +37,20 @@ write_files:
           type filter hook forward priority 0; policy drop;
           ct state established,related counter accept
           ct state invalid counter drop
+          ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter drop
           ip saddr @allowed_v4 counter accept
           counter log prefix "fwd-drop: " drop
         }
  
         chain output {
           type filter hook output priority 0; policy accept;
+        }
+      }
+
+      table ip nat {
+        chain postrouting {
+          type nat hook postrouting priority srcnat; policy accept;
+          ip saddr 10.100.0.0/14 ip daddr != { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 } oifname "eth0" counter masquerade
         }
       }
 

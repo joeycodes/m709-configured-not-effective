@@ -83,6 +83,34 @@ resource "azurerm_network_security_group" "workload" {
   tags                = local.common_tags
 }
 
+resource "azurerm_network_security_rule" "hub_allow" {
+  name                        = "AllowForwardedFromLab"
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "*"
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefix       = "10.100.0.0/14"
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.lab.name
+  network_security_group_name = azurerm_network_security_group.workload["snet-hub-nva"].name
+}
+
+resource "azurerm_network_security_rule" "tier2-tier0" {
+  name                        = "DenyTier2ToTier0"
+  priority                    = 200
+  direction                   = "Inbound"
+  access                      = "Deny"
+  protocol                    = "*"
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefix       = local.vnets["tier2"]
+  destination_address_prefix  = local.vnets["tier0"]
+  resource_group_name         = azurerm_resource_group.lab.name
+  network_security_group_name = azurerm_network_security_group.workload["snet-tier0-workload"].name
+}
+
 resource "azurerm_subnet_network_security_group_association" "workload" {
   for_each = local.workload_subnets
 
@@ -135,4 +163,13 @@ resource "azurerm_virtual_network_peering" "spoke_to_hub" {
   virtual_network_name      = azurerm_virtual_network.this[each.key].name
   remote_virtual_network_id = azurerm_virtual_network.this["hub"].id
   allow_forwarded_traffic   = true
+}
+
+resource "azurerm_public_ip" "hub" {
+  name                = "pip-cne-hub"
+  resource_group_name = azurerm_resource_group.lab.name
+  location            = azurerm_resource_group.lab.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = local.common_tags
 }
