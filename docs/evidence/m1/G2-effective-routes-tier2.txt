@@ -1,0 +1,11 @@
+### 2026-10-06
+### test: the default route of a tier subnet is the NVA — the system Internet route is invalidated by the user-defined 0.0.0.0/0
+### cmd: az network nic show-effective-route-table -g $RG -n nic-cne-tier2 -o table
+
+Source    State    Address Prefix    Next Hop Type     Next Hop IP
+--------  -------  ----------------  ----------------  -------------
+Default   Active   10.103.0.0/16     VnetLocal
+Default   Active   10.100.0.0/16     VNetPeering
+Default   Invalid  0.0.0.0/0         Internet
+User      Active   10.100.0.0/14     VirtualAppliance  10.100.2.4
+User      Active   0.0.0.0/0         VirtualAppliance  10.100.2.4
