@@ -1,0 +1,51 @@
+### 2026-10-06
+### test: the deny is directional — tier-2 cannot open a flow to tier-0, tier-1 can, and tier-0 can open a flow to tier-2 whose replies match the deny rule's addresses
+### note: $T0 = 10.101.0.4, $T2 = 10.103.0.4
+
+### (a) tier-2 -> tier-0
+### cmd: az vm run-command invoke -g $RG -n vm-cne-tier2 --command-id RunShellScript --scripts "ping -c3 -W2 $T0; echo exit=\$?" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 10.101.0.4 (10.101.0.4) 56(84) bytes of data.
+
+--- 10.101.0.4 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2068ms
+
+exit=1
+
+[stderr]
+
+### (b) tier-1 -> tier-0
+### cmd: az vm run-command invoke -g $RG -n vm-cne-tier1 --command-id RunShellScript --scripts "ping -c3 -W2 $T0; echo exit=\$?" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 10.101.0.4 (10.101.0.4) 56(84) bytes of data.
+64 bytes from 10.101.0.4: icmp_seq=1 ttl=63 time=15.0 ms
+64 bytes from 10.101.0.4: icmp_seq=2 ttl=63 time=10.8 ms
+64 bytes from 10.101.0.4: icmp_seq=3 ttl=63 time=6.82 ms
+
+--- 10.101.0.4 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2002ms
+rtt min/avg/max/mdev = 6.823/10.879/15.038/3.354 ms
+exit=0
+
+[stderr]
+
+### (c) tier-0 -> tier-2
+### cmd: az vm run-command invoke -g $RG -n vm-cne-tier0 --command-id RunShellScript --scripts "ping -c3 -W2 $T2; echo exit=\$?" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 10.103.0.4 (10.103.0.4) 56(84) bytes of data.
+64 bytes from 10.103.0.4: icmp_seq=1 ttl=63 time=17.9 ms
+64 bytes from 10.103.0.4: icmp_seq=2 ttl=63 time=8.04 ms
+64 bytes from 10.103.0.4: icmp_seq=3 ttl=63 time=4.71 ms
+
+--- 10.103.0.4 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 4.712/10.228/17.930/5.613 ms
+exit=0
+
+[stderr]

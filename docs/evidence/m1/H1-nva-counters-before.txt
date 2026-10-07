@@ -1,0 +1,16 @@
+### 2026-10-06
+### test: forward-chain counters before the three directional pings — the persistent deny has matched nothing
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "nft list chain inet filter forward" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+table inet filter {
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		ct state established,related counter packets 12737 bytes 15112650 accept
+		ct state invalid counter packets 0 bytes 0 drop
+		ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter packets 0 bytes 0 drop
+		ip saddr @allowed_v4 counter packets 19 bytes 1140 accept
+		counter packets 0 bytes 0 log prefix "fwd-drop: " drop
+	}
+}

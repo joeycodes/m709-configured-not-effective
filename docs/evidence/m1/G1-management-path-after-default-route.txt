@@ -1,0 +1,32 @@
+### 2026-10-06
+### test: with 0.0.0.0/0 routed to the NVA, the run-command management path to a tier VM still works, and the guest agent still reports to the platform
+### cmd: az vm run-command invoke -g $RG -n vm-cne-tier2 --command-id RunShellScript --scripts "hostname" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+vm-cne-tier2
+
+[stderr]
+
+### cmd: az vm get-instance-view -g $RG -n vm-cne-tier2 --query "instanceView.{agent:vmAgent.statuses[0].displayStatus, agentMsg:vmAgent.statuses[0].message, extensions:extensions[].{name:name, status:statuses[0].displayStatus, msg:statuses[0].message}}"
+
+{
+  "agent": "Ready",
+  "agentMsg": "Guest Agent is running",
+  "extensions": []
+}
+
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "ping -c2 -W2 10.103.0.4; nc -vz -w3 10.103.0.4 22" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 10.103.0.4 (10.103.0.4) 56(84) bytes of data.
+64 bytes from 10.103.0.4: icmp_seq=1 ttl=64 time=13.5 ms
+64 bytes from 10.103.0.4: icmp_seq=2 ttl=64 time=4.99 ms
+
+--- 10.103.0.4 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1002ms
+rtt min/avg/max/mdev = 4.993/9.235/13.477/4.242 ms
+
+[stderr]
+Connection to 10.103.0.4 22 port [tcp/ssh] succeeded!

@@ -1,0 +1,19 @@
+### 2026-10-06
+### test: the deny counter accounts for exactly the three refused echo requests and is not advanced by the replies to tier-0's own flow
+### note: deny 0 -> 3 packets / 252 bytes (3 x 84). allow 19 -> 26: +7 packets / +468 bytes = 2 x 84 (first echo request of flows b and c) + 5 x 60 (TCP SYNs from unrelated tier egress). The established counter rose by about 20,000 packets / 22 MB of background egress and cannot be reconciled against the pings.
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "nft list chain inet filter forward" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+table inet filter {
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		ct state established,related counter packets 32709 bytes 37483457 accept
+		ct state invalid counter packets 0 bytes 0 drop
+		ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter packets 3 bytes 252 drop
+		ip saddr @allowed_v4 counter packets 26 bytes 1608 accept
+		counter packets 0 bytes 0 log prefix "fwd-drop: " drop
+	}
+}
+
+[stderr]

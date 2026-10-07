@@ -1,0 +1,16 @@
+### 2026-10-06
+### test: a tier VM reaches the internet through the NVA — the address the internet sees is the NVA's public address, not one of the tier's own
+### note: the NVA's public address is replaced by <nva-public-ip>. Both commands returned the same value.
+
+### cmd: az vm run-command invoke -g $RG -n vm-cne-tier2 --command-id RunShellScript --scripts "curl -s -m 10 https://ifconfig.me; echo; echo exit=\$?" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+<nva-public-ip>
+exit=0
+
+[stderr]
+
+### cmd: az network public-ip show -g $RG -n pip-cne-hub --query ipAddress -o tsv
+
+<nva-public-ip>

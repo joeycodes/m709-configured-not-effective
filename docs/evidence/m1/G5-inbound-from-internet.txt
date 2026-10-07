@@ -1,0 +1,44 @@
+### 2026-10-06
+### test: inbound from the internet to the NVA's public address is refused — by configuration, and in effect
+### note: the NVA's public address is replaced by <nva-public-ip> throughout.
+### note: (c) and (d) are the same command from the same workstation, with a Cloudflare Zero Trust (WARP) client on and then off. Only (d) and (e) reach Azure; see README.
+
+### (a) the rules on the NVA subnet's NSG
+### cmd: az network nsg rule list --nsg-name nsg-hub-nva -g $RG --query "[].{name:name, priority:priority, direction:direction, access:access, source:sourceAddressPrefix, destination:destinationAddressPrefix}" -o table
+### (reduced from the full JSON output; one custom rule exists)
+
+Name                   Priority    Direction    Access    Source          Destination
+---------------------  ----------  -----------  --------  --------------  -------------
+AllowForwardedFromLab  100         Inbound      Allow     10.100.0.0/14   *
+
+### (b) the platform's own evaluation of an inbound TCP/22 packet from a public source
+### cmd: az network watcher test-ip-flow -g $RG --vm vm-cne-hub --direction Inbound --protocol TCP --local 10.100.2.4:22 --remote 203.0.113.10:40000
+
+{
+  "access": "Deny",
+  "ruleName": "defaultSecurityRules/DenyAllInBound"
+}
+
+### (c) workstation, VPN client ON — does not test the NSG
+### cmd: nc -vz -w 5 <nva-public-ip> 22
+
+nc: connectx to <nva-public-ip> port 22 (tcp) failed: Network is unreachable
+
+### (d) workstation, VPN client OFF
+### cmd: nc -vz -w 5 <nva-public-ip> 22
+
+nc: connectx to <nva-public-ip> port 22 (tcp) failed: Operation timed out
+
+### (e) packet capture on the workstation during (d): nine SYNs, no SYN-ACK, no RST, no ICMP
+### (transcribed from Wireshark; source is the workstation's private address)
+
+No.  Time       Source         Destination       Info
+1    0.000000   192.168.1.76   <nva-public-ip>   62455 -> 22 [SYN, ECE, CWR] Seq=0 Win=65535 Len=0 MSS=1460 WS=64
+2    1.001046   192.168.1.76   <nva-public-ip>   [TCP Retransmission] 62455 -> 22 [SYN]
+3    2.002024   192.168.1.76   <nva-public-ip>   [TCP Retransmission] 62455 -> 22 [SYN]
+4    3.002443   192.168.1.76   <nva-public-ip>   [TCP Retransmission] 62455 -> 22 [SYN]
+5    4.002893   192.168.1.76   <nva-public-ip>   [TCP Retransmission] 62455 -> 22 [SYN]
+6    5.003044   192.168.1.76   <nva-public-ip>   [TCP Retransmission] 62455 -> 22 [SYN]
+7    7.003947   192.168.1.76   <nva-public-ip>   [TCP Retransmission] 62455 -> 22 [SYN]
+8    11.004016  192.168.1.76   <nva-public-ip>   [TCP Retransmission] 62455 -> 22 [SYN]
+9    19.003974  192.168.1.76   <nva-public-ip>   [TCP Retransmission] 62455 -> 22 [SYN]

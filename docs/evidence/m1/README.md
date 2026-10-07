@@ -1,106 +1,89 @@
-# M1 evidence — east-west segmentation
+# M1 evidence — segmentation and egress
 
-Environment: `canadaeast`, resource group `rg-cne-lab`, 2026-09-23.
-Topology: hub NVA `10.100.2.4` (`Standard_D2s_v6`), tier endpoints in
-`10.101.0.0/16`, `10.102.0.0/16`, `10.103.0.0/16` (`Standard_D2ls_v6`).
-All observations were taken through `az vm run-command invoke`; no virtual
-machine has a public IP or an inbound management port (ADR D14).
+Environment: `canadaeast`, resource group `rg-cne-lab`. Hub NVA `10.100.2.4`
+with a public IP and no inbound port open; tier endpoints in `10.101.0.0/16`,
+`10.102.0.0/16` and `10.103.0.0/16`, none with a public IP.
 
-These readings were taken against the ruleset as deployed on 2026-09-23, before
-counters were added to the two `ct state` rules in `cloud-init-nva.yaml` in this
-same change. A re-run after the next rebuild will report higher packet counts for
-identical traffic, because packets that previously matched an uncounted rule are
-now counted. Every comparison recorded below is zero against non-zero, or a
-difference between two readings, and none of them depends on the absolute value.
-
-C3–C5 and F2–F4 were taken on 2026-10-05 against a full rebuild from the same
-configuration, with those counters in place. They close two of the gaps listed
-at the end and leave the earlier readings as they were recorded.
+This page is an index. The commands, outputs and dates are in the files; each
+file's header states the assertion it tests. Design intent is in
+`docs/TECHNICAL-DESIGN.md`, decisions and their history in `docs/adr/`.
 
 ## Assertions
 
-| ID | Assertion | Expected | Observed | File |
-|----|-----------|----------|----------|------|
-| A1 | The NVA is configured as intended at both layers | `cloud-init status: done`, `nft` present and active, `net.ipv4.ip_forward = 1`, forward chain loaded | all four hold; counters at zero | `A1-nva-cloudinit-nft-sysctl.txt` |
-| B1 | The route table redirects tier-to-tier traffic only | `10.100.0.0/14` → `VirtualAppliance` `10.100.2.4` (source `User`); own VNet and hub keep their system routes | holds; `10.103.0.0/16` stays `VnetLocal`, `10.100.0.0/16` stays `VNetPeering` | `B1-effective-routes-tier2.txt` |
-| C1 | tier-2 reaches tier-0, and the path is through the NVA | reachable; one TTL decrement; first hop `10.100.2.4` | 3/3 received, `ttl=63`, `tracepath` hop 1 `10.100.2.4`, hop 2 the target | `C1-tier2-to-tier0-ping-tracepath.txt` |
-| C2 | The traffic is accounted for on the NVA, not merely reachable | forward-chain accept counter rises across the ping | 3 → 4 packets, 1668 → 1752 bytes: a difference of 1 packet / 84 bytes, the first echo request of the new flow; the rest matched the uncounted `ct state` rule — see *Gaps* | `C2-nva-counters-after-t2.txt` |
-| C3–C5 | Every forwarded packet is accounted for, once both `ct` rules carry counters | 3 echo requests and 3 replies: 1 packet on the allow rule (the new flow), 5 on `ct state established` | all counters zero before; after, allow 1 packet / 84 bytes and established 5 packets / 420 bytes — 6 packets / 504 bytes (= 6 × 84); `invalid` and the final drop stay at zero | `C3-nva-counters-baseline.txt`, `C4-t2-ping-accounted.txt`, `C5-nva-counters-after.txt` |
-| D1 | A deny rule can be placed ahead of the stateful accept | rule at the head of the chain, before `ct state established` | inserted as handle 14, first in chain | `D1-t4-rule-inserted.txt` |
-| D2 | The NVA denies tier-2 → tier-0 while the rule is present | no reply | 3 transmitted, 0 received, 100% loss, `exit=1` | `D2-t4-tier2-blocked.txt` |
-| D3 | The denial is directed, not a loss of forwarding | tier-1 → tier-0 unaffected | 3/3 received, `exit=0` | `D3-t4-tier1-unaffected.txt` |
-| D4 | The denial is attributable to that rule, and is reversible | drop counter accounts for exactly the denied packets; ruleset returns to the file-defined state | drop 3 packets / 252 bytes (= 3 × 84, the ICMP echo requests); accept 6 packets; after `systemctl restart nftables` the rule is gone and counters are zero | `D4-t4-counters-and-restore.txt` |
-| E  | Forwarding requires both the fabric and the kernel | with `ip_forwarding_enabled` false on the NVA NIC, tier-2 → tier-0 fails | fails (3 transmitted, 0 received, `exit=1`) while the NVA reports `net.ipv4.ip_forward = 1` and its accept counter advances 0 → 3 packets / 252 bytes; restored, the same test returns 3/3 | `E1-t5-ipforward-disabled.txt`, `E2-t5-restored.txt` |
-| F  | The deployed environment matches the configuration | `apply` reports no remaining difference | `No changes` — but see below: the drift had already been undone by hand in E2, so this shows convergence, not reclamation | `F1-apply-after-drift.txt` |
-| F2–F4 | A change made outside the configuration is detected and reverted by `apply` | with `ip_forwarding_enabled` set false by hand and left that way, `apply` plans one in-place change and restores it | NIC reads `false`; plan `0 to add, 1 to change, 0 to destroy` (`ip_forwarding_enabled = false -> true`); `Apply complete! 0 added, 1 changed, 0 destroyed`; NIC reads `true` and tier-2 → tier-0 returns 3/3 | `F2-drift-introduced.txt`, `F3-apply-reclaims-drift.txt`, `F4-restored.txt` |
+Every assertion below holds in the files cited. What does not hold, or is not
+shown, is under *Open gaps*.
 
-## What the numbers mean
+| ID | Assertion |
+|----|-----------|
+| A1 | The NVA is configured from code: cloud-init complete, nftables active, kernel forwarding on |
+| G3 | The NVA rebuilds with the intended ruleset |
+| G2 | A tier's routes send everything beyond its own VNet to the NVA |
+| G1 | The run-command management path survives the default route |
+| C3–C5 | Every forwarded packet is accounted for on the NVA |
+| H1–H3 | The deny for tier-2 → tier-0 is persistent, directional and attributable to one rule |
+| G4 | Tier egress leaves through the NVA |
+| G5 | Inbound from the internet is refused, by configuration and in effect |
+| E | Forwarding requires both the fabric and the kernel |
+| F2–F4 | A change made outside the configuration is detected and reverted by `apply` |
 
-D4 is the test that carries the argument. `ping` failing shows only that
-something stopped the traffic. The drop counter reading 3 packets / 252 bytes
-identifies *what* stopped it and *where*: 84 bytes is a 56-byte ICMP payload
-plus its 8-byte header and a 20-byte IP header, so the count is exactly the
-three echo requests tier-2 sent, dropped in the NVA's forward chain. D3 rules
-out the alternative explanation that forwarding broke in general.
+The evidence for each ID is in this directory, in the file or files whose name
+begins with that ID, for example `G5-inbound-from-internet.txt`.
 
-E separates the two independent switches that both have to be on, and it did not
-behave as predicted. The expectation written before the run was that the NVA's
-counters would stay at zero, on the assumption that the fabric refuses the
-packets on the way in. The measurement says otherwise: with `ip_forwarding_enabled`
-false, the accept counter still advanced by exactly the three echo requests
-(252 bytes = 3 × 84). The packets reach the NVA, the kernel routes them, nftables
-accepts them, and the fabric discards them on the way out — a NIC without IP
-forwarding may not emit a packet whose source address is not its own.
+### Earlier readings
 
-The consequence is worth more than the prediction would have been. Every check
-available on the NVA reports success: `net.ipv4.ip_forward = 1`, the ruleset is
-intact, and the forward chain's counter shows the traffic being accepted and
-forwarded. Nothing arrives. Host-level packet accounting, the measurement this
-project relies on elsewhere, gives the wrong answer for this failure, because the
-discard happens in the fabric, outside the operating system's view and without a
-local log. An operator on the NVA sees a correct configuration and concludes the
-problem is elsewhere.
+Kept because later arguments refer to them; each describes the lab before a
+later change and is not re-runnable verbatim.
 
-F2–F4 show the other side of the same fault. While the NIC property was false,
-nothing on the NVA would have reported it; the `plan` did, because it compares
-the configuration with what the platform reports rather than with what the host
-sees. Drift detection covers the layer that host-level accounting cannot.
+| ID | Shows | Superseded by |
+|----|-------|---------------|
+| B1 | routes before the default route was added | G2 |
+| C1 | tier-2 → tier-0 through the NVA, before the persistent deny | H2 |
+| C2 | counters before the `ct state` rules carried them | C3–C5 |
+| D1–D4 | a deny inserted at run time, ahead of the stateful accept | H1–H3 |
+| F1 | `apply` after the drift had been undone by hand | F2–F4 |
 
-This is also a caution about the method: the counters are evidence of what the
-host did, not of what was delivered. Where delivery is the claim, it has to be
-observed at the destination.
+C3–C5 and E used tier-2 → tier-0 as their test flow, which is now refused; a
+re-run uses tier-1 → tier-0.
 
-## Gaps
+## Findings
 
-- **The counters under-reported — closed.** On 2026-09-23 the two `ct state`
-  rules carried no counter, so the accept counter recorded the first packet of
-  each new flow rather than every forwarded packet; C2's 1 packet / 84 bytes for
-  a six-packet exchange is that defect. Counters were added to both rules in
-  `cloud-init-nva.yaml`, and C3–C5 reconcile the same exchange exactly: 1 + 5 =
-  6 packets, 504 bytes. C2 is kept as the record of the earlier state.
-- **Counters reset on reload.** `systemctl restart nftables` returns the ruleset
-  to the file and zeroes every counter, so a reading has to be taken before the
-  restore step, not after.
-- **A reset that resets nothing.** `nft reset counters` acts on named counter
-  objects; this ruleset uses anonymous counters inside rules, which are reset by
-  `nft reset rules`. The first command succeeds, reports no error and changes
-  nothing. C2 was read as a before/after pair for that reason, and a difference
-  is in any case a stronger measurement than an absolute value, because it does
-  not assume the baseline was zero.
-- **Drift reclamation was not demonstrated by F — closed.** F was run after the
-  NIC had already been restored by hand, so `apply` had nothing to correct and
-  showed convergence only. F2–F4 repeat the test in the correct form: the change
-  is left in place, `apply` reverts it, and delivery is confirmed by a 3/3
-  ping afterwards.
-- **Rule order is untested.** The deny rule was placed ahead of the stateful
-  accept, so it also severed the flow established earlier. Placed after it, the
-  same rule would leave existing connections running while appearing identical
-  in `nft list ruleset`. That case belongs in M3.
+- **A counter attributes; a failed ping does not.** The deny counter accounts
+  for exactly the refused packets, which identifies the rule and the host that
+  stopped them. (H3, D4)
+- **A rule's position decides its behaviour.** After the stateful accept the
+  deny refuses new flows only; ahead of it, the same text blocks both
+  directions. The ruleset listing does not distinguish the two. (H2, D1)
+- **Host accounting has a blind spot.** With IP forwarding off on the NIC, every
+  check on the NVA reports success and nothing is delivered: the fabric discards
+  the packets outside the operating system's view. The prediction made before
+  the run was refuted. (E1)
+- **Drift detection covers that blind spot,** because `plan` compares the
+  configuration with what the platform reports. (F3)
+- **A failed connection is evidence of a control only if its failure mode
+  matches that control and the test path is known.** A VPN client on the test
+  workstation answered on the target's behalf and produced two other failure
+  modes before the real one was seen. (G5)
 
-## Reproducing
+## Open gaps
 
-Each file records the command that produced it. The lab is rebuilt from
-`infra/envs/lab` and destroyed nightly, so addresses are stable by construction
-(`10.100.2.4` is static; endpoint addresses are the first available in each
-subnet) but a rebuild should be confirmed with `terraform output` before the
-commands are re-run verbatim.
+- **Tier-0 egress contradicts the design.** TECHNICAL-DESIGN.md gives tier-0
+  default-deny egress; the deployed ruleset lets tier-0 reach the internet and
+  open flows to other tiers. Found in review, not by a test; deferred to M3
+  (ADR D18). (G3, H2 c)
+- **The forward chain is not quiet.** With egress open the tiers generate
+  background traffic of unknown purpose, so only counters on rules specific to
+  the tested flow can be read exactly. (H1, H3)
+- **The second layer is not exercised.** Tier-0's NSG also denies tier-2, but
+  the NVA drops those packets first.
+- **G1 covers tier-2 only.** It does not show that run-command works on a VM
+  with no egress.
+
+## Method notes
+
+- Counter readings are differences between two readings, not absolute values.
+- `systemctl restart nftables` zeroes every counter: read before restoring.
+- `nft reset counters` does nothing to this ruleset, silently; anonymous
+  counters are reset by `nft reset rules`.
+- The NVA's public IP appears in the files as `<nva-public-ip>`.
+- Private addresses are stable across rebuilds by construction, but confirm
+  with `terraform output` before re-running a command verbatim.
