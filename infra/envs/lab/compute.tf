@@ -16,6 +16,7 @@ resource "azurerm_network_interface" "spoke" {
 
 # Create network interface for hub virtual machine with IP forwarding enabled.
 resource "azurerm_network_interface" "hub" {
+  #checkov:skip=CKV_AZURE_119:The NVA is the lab's single internet egress point and will terminate the IPsec tunnel. Inbound from the internet is denied by the subnet NSG.
   name                  = "nic-cne-hub"
   location              = azurerm_resource_group.lab.location
   resource_group_name   = azurerm_resource_group.lab.name
@@ -27,6 +28,7 @@ resource "azurerm_network_interface" "hub" {
     subnet_id                     = azurerm_subnet.workload["snet-hub-nva"].id
     private_ip_address_allocation = "Static"
     private_ip_address            = "10.100.2.4"
+    public_ip_address_id          = azurerm_public_ip.hub.id
   }
 }
 

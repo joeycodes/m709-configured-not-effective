@@ -5,14 +5,19 @@
 # both have more specific system routes, and Azure selects by longest
 # prefix first, so that traffic still goes direct.
 #
-# Deliberately incomplete, in two ways:
-#   - Internet egress (0.0.0.0/0) is not redirected yet. That requires the
-#     NVA to have an egress path and to masquerade; until then it would
-#     break the run-command management path.
+# Two routes per spoke:
+#   - 10.100.0.0/14 -> NVA: tier-to-tier traffic.
+#   - 0.0.0.0/0 -> NVA: internet egress, masqueraded by the NVA
+#     (cloud-init-nva.yaml). The NVA is now on the path of everything a
+#     tier sends off its own VNet, including whatever the run-command
+#     management path needs to reach.
+#
+# Still incomplete in one way:
 #   - A /14 does not survive a future spoke-to-spoke peering: the resulting
 #     /16 system route is more specific and would bypass the NVA silently,
 #     with this configuration unchanged. The end state replaces it with
 #     explicit per-tier /16 routes plus a 0.0.0.0/0 default.
+
 resource "azurerm_route_table" "spoke" {
   for_each = local.spokes
 
@@ -24,6 +29,13 @@ resource "azurerm_route_table" "spoke" {
   route {
     name                   = "to-other-tiers-via-nva"
     address_prefix         = "10.100.0.0/14"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = azurerm_network_interface.hub.private_ip_address
+  }
+
+  route {
+    name                   = "default-via-nva"
+    address_prefix         = "0.0.0.0/0"
     next_hop_type          = "VirtualAppliance"
     next_hop_in_ip_address = azurerm_network_interface.hub.private_ip_address
   }
