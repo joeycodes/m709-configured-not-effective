@@ -1,10 +1,12 @@
-# M1 evidence — segmentation and egress
+# M1 evidence — segmentation, egress and the site-to-site tunnel
 
 Environment: `canadaeast`, resource group `rg-cne-lab`. Hub NVA `10.100.2.4`
-with a public IP and no inbound port open; tier endpoints in `10.101.0.0/16`,
-`10.102.0.0/16` and `10.103.0.0/16`, none with a public IP. On-premises site in
-`10.0.0.0/16`, not peered: a gateway `10.0.0.4` with a public IP and a server in
-`10.0.1.0/24` routed through it.
+with a public IP, open inbound only to UDP 4500 from the on-premises gateway.
+Tier endpoints in `10.101.0.0/16`, `10.102.0.0/16` and `10.103.0.0/16`, none
+with a public IP. On-premises site in `10.0.0.0/16`, not peered: a gateway
+`10.0.0.4` with a public IP and a server in `10.0.1.0/24` routed through it.
+The two gateways are joined by an IKEv2 tunnel on UDP 4500, route-based
+through `ipsec0` (`169.254.100.1` and `.2`).
 
 This page is an index. The commands, outputs and dates are in the files; each
 file's header states the assertion it tests. Design intent is in
@@ -29,6 +31,8 @@ shown, is under *Open gaps*.
 | F2–F4 | A change made outside the configuration is detected and reverted by `apply` |
 | I1 | The on-premises server reaches the internet through the on-premises gateway |
 | I2 | Before the tunnel exists there is no path between on-premises and Azure |
+| J2 | The IPsec tunnel establishes on the NAT-T port at both ends |
+| J3 | Data crosses the tunnel in both directions, and the two ends account for it identically |
 
 The evidence for each ID is in this directory, in the file or files whose name
 begins with that ID, for example `G5-inbound-from-internet.txt`.
@@ -45,6 +49,7 @@ later change and is not re-runnable verbatim.
 | C2 | counters before the `ct state` rules carried them | C3–C5 |
 | D1–D4 | a deny inserted at run time, ahead of the stateful accept | H1–H3 |
 | F1 | `apply` after the drift had been undone by hand | F2–F4 |
+| J1 | IKE sent from port 500 to port 4500: accepted by every layer up to the daemon, silently dropped by the kernel | J2 |
 
 C3–C5 and E used tier-2 → tier-0 as their test flow, which is now refused; a
 re-run uses tier-1 → tier-0.
@@ -81,6 +86,12 @@ re-run uses tier-1 → tier-0.
   the NVA drops those packets first.
 - **G1 covers tier-2 only.** It does not show that run-command works on a VM
   with no egress.
+- **`ipsec0` counts transmit errors that grow on their own.** A few every few
+  minutes on both gateways, independent of the tested traffic. The working
+  hypothesis is IPv6 link-local traffic, which no SA covers; untested. (J2, J3)
+- **The hub's port-4500 rule reads zero once the tunnel is up.** Its traffic
+  matches `ct state established` first, consistent with the tunnel having been
+  negotiated before the ruleset was loaded at boot; unconfirmed. (J2 c)
 
 ## Method notes
 
@@ -89,5 +100,7 @@ re-run uses tier-1 → tier-0.
 - `nft reset counters` does nothing to this ruleset, silently; anonymous
   counters are reset by `nft reset rules`.
 - Public IPs appear in the files as `<nva-public-ip>` and `<onprem-gw-public-ip>`.
+- swanctl prints warnings for optional plugins that are not installed; they are
+  omitted from the files.
 - Private addresses are stable across rebuilds by construction, but confirm
   with `terraform output` before re-running a command verbatim.

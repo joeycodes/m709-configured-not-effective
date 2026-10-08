@@ -1,0 +1,89 @@
+### 2026-10-07
+### test: data crosses the tunnel in both directions, and the two ends account for it identically — each SA's packet count on one end equals the opposite SA's count on the other
+### note: plugin warnings omitted. SPI cf104dac is hub-in and gateway-out; c299dc94 is hub-out and gateway-in.
+### note: the gateway's SAs read 6 because they carry both pings: three requests from the hub with their replies, then three of its own.
+### note: the gateway's ipsec0 input rule counts 1 packet / 84 bytes, the first echo request of the hub's ping; the later requests matched ct state established. Same pattern as C2.
+
+### (a) hub -> gateway, tunnel addresses
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "ping -c3 -W2 169.254.100.2; echo exit=\$?; echo ---; swanctl --list-sas | grep -E 'in |out '; echo ---; ip -s link show ipsec0" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 169.254.100.2 (169.254.100.2) 56(84) bytes of data.
+64 bytes from 169.254.100.2: icmp_seq=1 ttl=64 time=0.458 ms
+64 bytes from 169.254.100.2: icmp_seq=2 ttl=64 time=0.541 ms
+64 bytes from 169.254.100.2: icmp_seq=3 ttl=64 time=0.441 ms
+
+--- 169.254.100.2 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2039ms
+rtt min/avg/max/mdev = 0.441/0.480/0.541/0.043 ms
+exit=0
+---
+  established 462s ago, rekeying in 12652s
+    installed 462s ago, rekeying in 2805s, expires in 3498s
+    in  cf104dac (-|0x0000002a),    252 bytes,     3 packets,     0s ago
+    out c299dc94 (-|0x0000002a),    252 bytes,     3 packets,     0s ago
+---
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+           252       3      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+           252       3      7       7       7       0
+
+### (b) gateway -> hub, tunnel addresses
+### cmd: az vm run-command invoke -g $RG -n vm-cne-onprem-gw --command-id RunShellScript --scripts "ping -c3 -W2 169.254.100.1; echo exit=\$?; echo ---; swanctl --list-sas | grep -E 'in |out '; echo ---; ip -s link show ipsec0" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 169.254.100.1 (169.254.100.1) 56(84) bytes of data.
+64 bytes from 169.254.100.1: icmp_seq=1 ttl=64 time=0.487 ms
+64 bytes from 169.254.100.1: icmp_seq=2 ttl=64 time=0.620 ms
+64 bytes from 169.254.100.1: icmp_seq=3 ttl=64 time=0.527 ms
+
+--- 169.254.100.1 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2065ms
+rtt min/avg/max/mdev = 0.487/0.544/0.620/0.055 ms
+exit=0
+---
+  established 580s ago, rekeying in 12543s
+    installed 580s ago, rekeying in 2887s, expires in 3380s
+    in  c299dc94 (-|0x0000002a),    504 bytes,     6 packets,     0s ago
+    out cf104dac (-|0x0000002a),    504 bytes,     6 packets,     0s ago
+---
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+           504       6      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+           504       6      8       8       8       0
+
+### (c) gateway: input counters
+### cmd: az vm run-command invoke -g $RG -n vm-cne-onprem-gw --command-id RunShellScript --scripts "swanctl --list-sas | grep -E 'in |out '; echo ---; ip -s link show ipsec0; echo ---; nft list chain inet filter input" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+  established 676s ago, rekeying in 12447s
+    installed 676s ago, rekeying in 2791s, expires in 3284s
+    in  c299dc94 (-|0x0000002a),    504 bytes,     6 packets,    96s ago
+    out cf104dac (-|0x0000002a),    504 bytes,     6 packets,    96s ago
+---
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+           504       6      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+           504       6      8       8       8       0
+---
+table inet filter {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		ct state established,related accept
+		ct state invalid drop
+		iif "lo" accept
+		ip saddr 168.63.129.16 accept
+		ip saddr <nva-public-ip> udp dport 4500 counter packets 0 bytes 0 accept
+		iifname "ipsec0" ip saddr 169.254.100.0/30 counter packets 1 bytes 84 accept
+		ip saddr @allowed_v4 accept
+	}
+}

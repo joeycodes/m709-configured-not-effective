@@ -1,0 +1,77 @@
+### 2026-10-07
+### test: with local_port = 4500 at both ends the tunnel establishes on the NAT-T port, the CHILD_SA is bound to interface ID 42, and dead-peer detection runs in both directions
+### note: public addresses replaced as in J1; plugin warnings omitted. 0x0000002a is interface ID 42, the InterfaceId of ipsec0.
+
+### (a) hub
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "swanctl --list-sas; echo ---; ip -s link show ipsec0" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+s2s: #1, ESTABLISHED, IKEv2, 644fd84c41d86e9e_i 4149a9813a5d3ba5_r*
+  local  'hub.cne.lab' @ 10.100.2.4[4500]
+  remote 'onprem.cne.lab' @ <onprem-gw-public-ip>[4500]
+  AES_GCM_16-256/PRF_HMAC_SHA2_384/ECP_384
+  established 39s ago, rekeying in 13075s
+  net: #1, reqid 1, INSTALLED, TUNNEL-in-UDP, ESP:AES_GCM_16-256
+    installed 39s ago, rekeying in 3228s, expires in 3921s
+    in  cf104dac (-|0x0000002a),      0 bytes,     0 packets
+    out c299dc94 (-|0x0000002a),      0 bytes,     0 packets
+    local  0.0.0.0/0
+    remote 0.0.0.0/0
+---
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+             0       0      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+             0       0      4       4       4       0
+
+### (b) on-premises gateway
+### cmd: az vm run-command invoke -g $RG -n vm-cne-onprem-gw --command-id RunShellScript --scripts "swanctl --list-sas; echo ---; ip -s link show ipsec0" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+s2s: #1, ESTABLISHED, IKEv2, 644fd84c41d86e9e_i* 4149a9813a5d3ba5_r
+  local  'onprem.cne.lab' @ 10.0.0.4[4500]
+  remote 'hub.cne.lab' @ <nva-public-ip>[4500]
+  AES_GCM_16-256/PRF_HMAC_SHA2_384/ECP_384
+  established 106s ago, rekeying in 13017s
+  net: #1, reqid 1, INSTALLED, TUNNEL-in-UDP, ESP:AES_GCM_16-256
+    installed 106s ago, rekeying in 3361s, expires in 3854s
+    in  c299dc94 (-|0x0000002a),      0 bytes,     0 packets
+    out cf104dac (-|0x0000002a),      0 bytes,     0 packets
+    local  0.0.0.0/0
+    remote 0.0.0.0/0
+---
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+             0       0      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+             0       0      5       5       5       0
+
+### (c) hub: DPD exchanges every 30 s; the port-4500 rule now reads zero, its traffic matched by ct state established instead (see README, Open gaps)
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "nft list chain inet filter input; echo ---; journalctl -u strongswan --no-pager | tail -20" --query "value[0].message" -o tsv
+### (journal reduced to one complete DPD cycle)
+
+Enable succeeded:
+[stdout]
+table inet filter {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		ct state established,related accept
+		ct state invalid drop
+		iif "lo" accept
+		ip saddr 168.63.129.16 accept
+		ip saddr <onprem-gw-public-ip> udp dport 4500 counter packets 0 bytes 0 accept
+		iifname "ipsec0" ip saddr 169.254.100.0/30 counter packets 0 bytes 0 accept
+		ip saddr @allowed_v4 accept
+	}
+}
+---
+Oct 08 05:22:59 vm-cne-hub charon-systemd[1708]: sending keep alive to <onprem-gw-public-ip>[4500]
+Oct 08 05:23:09 vm-cne-hub charon-systemd[1708]: sending DPD request
+Oct 08 05:23:09 vm-cne-hub charon-systemd[1708]: generating INFORMATIONAL request 5 [ ]
+Oct 08 05:23:09 vm-cne-hub charon-systemd[1708]: sending packet: from 10.100.2.4[4500] to <onprem-gw-public-ip>[4500] (57 bytes)
+Oct 08 05:23:09 vm-cne-hub charon-systemd[1708]: received packet: from <onprem-gw-public-ip>[4500] to 10.100.2.4[4500] (57 bytes)
+Oct 08 05:23:09 vm-cne-hub charon-systemd[1708]: parsed INFORMATIONAL response 5 [ ]
