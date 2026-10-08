@@ -49,7 +49,7 @@ resource "azurerm_network_interface" "onprem-srv" {
 # Create network interface for onprem gateway virtual machine
 resource "azurerm_network_interface" "onprem-gw" {
   #checkov:skip=CKV_AZURE_119:The on-premises gateway terminates the IPsec tunnel and needs a public address for it. Inbound from the internet is denied by the subnet NSG.
-  name                = "nic-cne-onprem-gw"
+  name                  = "nic-cne-onprem-gw"
   location              = azurerm_resource_group.lab.location
   resource_group_name   = azurerm_resource_group.lab.name
   tags                  = local.common_tags
