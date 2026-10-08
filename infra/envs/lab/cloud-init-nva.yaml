@@ -71,6 +71,7 @@ write_files:
           version = 2
           local_addrs  = ${local_addr}
           remote_addrs = ${peer_addr}
+          local_port   = 4500
           remote_port  = 4500
           encap        = yes
           proposals    = aes256gcm16-prfsha384-ecp384
