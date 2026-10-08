@@ -1,0 +1,34 @@
+### 2026-10-07
+### test: the on-premises server reaches the internet through the on-premises gateway — its route table points at the gateway, the gateway forwards and masquerades, and the address seen from the internet is the gateway's
+### note: the gateway's public address is replaced by <onprem-gw-public-ip>. Both commands in (b) returned the same value.
+
+### (a)
+### cmd: az vm run-command invoke -g $RG -n vm-cne-onprem-srv --command-id RunShellScript --scripts "ping -c3 -W2 8.8.8.8; echo exit=\$?" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=112 time=8.74 ms
+64 bytes from 8.8.8.8: icmp_seq=2 ttl=112 time=15.1 ms
+64 bytes from 8.8.8.8: icmp_seq=3 ttl=112 time=13.6 ms
+
+--- 8.8.8.8 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 8.736/12.473/15.054/2.705 ms
+exit=0
+
+[stderr]
+
+### (b)
+### cmd: az vm run-command invoke -g $RG -n vm-cne-onprem-srv --command-id RunShellScript --scripts "curl -s -m 10 https://ifconfig.me; echo; echo exit=\$?" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+<onprem-gw-public-ip>
+exit=0
+
+[stderr]
+
+### cmd: az network public-ip show -g $RG -n pip-cne-onprem-gw --query ipAddress -o tsv
+
+<onprem-gw-public-ip>

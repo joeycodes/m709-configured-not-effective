@@ -2,7 +2,9 @@
 
 Environment: `canadaeast`, resource group `rg-cne-lab`. Hub NVA `10.100.2.4`
 with a public IP and no inbound port open; tier endpoints in `10.101.0.0/16`,
-`10.102.0.0/16` and `10.103.0.0/16`, none with a public IP.
+`10.102.0.0/16` and `10.103.0.0/16`, none with a public IP. On-premises site in
+`10.0.0.0/16`, not peered: a gateway `10.0.0.4` with a public IP and a server in
+`10.0.1.0/24` routed through it.
 
 This page is an index. The commands, outputs and dates are in the files; each
 file's header states the assertion it tests. Design intent is in
@@ -25,6 +27,8 @@ shown, is under *Open gaps*.
 | G5 | Inbound from the internet is refused, by configuration and in effect |
 | E | Forwarding requires both the fabric and the kernel |
 | F2–F4 | A change made outside the configuration is detected and reverted by `apply` |
+| I1 | The on-premises server reaches the internet through the on-premises gateway |
+| I2 | Before the tunnel exists there is no path between on-premises and Azure |
 
 The evidence for each ID is in this directory, in the file or files whose name
 begins with that ID, for example `G5-inbound-from-internet.txt`.
@@ -84,6 +88,6 @@ re-run uses tier-1 → tier-0.
 - `systemctl restart nftables` zeroes every counter: read before restoring.
 - `nft reset counters` does nothing to this ruleset, silently; anonymous
   counters are reset by `nft reset rules`.
-- The NVA's public IP appears in the files as `<nva-public-ip>`.
+- Public IPs appear in the files as `<nva-public-ip>` and `<onprem-gw-public-ip>`.
 - Private addresses are stable across rebuilds by construction, but confirm
   with `terraform output` before re-running a command verbatim.

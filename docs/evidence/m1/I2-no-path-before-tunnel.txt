@@ -1,0 +1,64 @@
+### 2026-10-07
+### test: before the tunnel exists there is no path between on-premises and Azure — the server's traffic to a tier is dropped, and the gateway's routes show where
+### note: the on-premises VNet is not peered. 10.100.0.0/14 has no route more specific than Azure's default 10.0.0.0/8 -> None, so the fabric discards it. This is the baseline the tunnel is measured against.
+
+### (a) on-premises server -> tier-0
+### cmd: az vm run-command invoke -g $RG -n vm-cne-onprem-srv --command-id RunShellScript --scripts "ping -c3 -W2 10.101.0.4; echo exit=\$?" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 10.101.0.4 (10.101.0.4) 56(84) bytes of data.
+
+--- 10.101.0.4 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2068ms
+
+exit=1
+
+[stderr]
+
+### (b) effective routes on the gateway's NIC
+### cmd: az network nic show-effective-route-table -g $RG -n nic-cne-onprem-gw -o table
+
+Source    State    Address Prefix    Next Hop Type    Next Hop IP
+--------  -------  ----------------  ---------------  -------------
+Default   Active   10.0.0.0/16       VnetLocal
+Default   Active   0.0.0.0/0         Internet
+Default   Active   10.0.0.0/8        None
+Default   Active   127.0.0.0/8       None
+Default   Active   100.96.0.0/11     None
+Default   Active   172.16.0.0/12     None
+Default   Active   100.64.0.0/12     None
+Default   Active   100.80.0.0/13     None
+Default   Active   25.176.0.0/13     None
+Default   Active   100.92.0.0/14     None
+Default   Active   25.4.0.0/14       None
+Default   Active   25.152.0.0/14     None
+Default   Active   25.184.0.0/14     None
+Default   Active   100.90.0.0/15     None
+Default   Active   25.148.0.0/15     None
+Default   Active   198.18.0.0/15     None
+Default   Active   192.168.0.0/16    None
+Default   Active   25.150.0.0/16     None
+Default   Active   25.156.0.0/16     None
+Default   Active   25.159.0.0/16     None
+Default   Active   40.109.0.0/16     None
+Default   Active   100.88.0.0/16     None
+Default   Active   104.147.0.0/16    None
+Default   Active   157.59.0.0/16     None
+Default   Active   40.108.0.0/17     None
+Default   Active   104.146.0.0/17    None
+Default   Active   100.89.128.0/17   None
+Default   Active   23.103.0.0/18     None
+Default   Active   100.89.0.0/18     None
+Default   Active   100.89.96.0/19    None
+Default   Active   100.89.80.0/20    None
+Default   Active   100.89.64.0/21    None
+Default   Active   20.35.252.0/22    None
+Default   Active   100.89.72.0/22    None
+Default   Active   100.89.78.0/23    None
+Default   Active   100.89.76.0/24    None
+Default   Active   100.89.77.128/25  None
+Default   Active   100.89.77.0/26    None
+Default   Active   100.89.77.64/27   None
+Default   Active   100.89.77.112/28  None
+Default   Active   100.89.77.96/29   None
