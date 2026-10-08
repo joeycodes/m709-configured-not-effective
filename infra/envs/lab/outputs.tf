@@ -18,6 +18,16 @@ output "spoke_private_ips" {
   description = "Private IPs of the tier endpoints, used as source and target in the segmentation tests."
 }
 
+output "onprem_gw_private_ip" {
+  value       = azurerm_network_interface.onprem-gw.private_ip_address
+  description = "Private IP of the on-premises gateway VM: the next hop for the on-premises server subnet and the local address of the IPsec tunnel."
+}
+
+output "onprem_srv_private_ip" {
+  value       = azurerm_network_interface.onprem-srv.private_ip_address
+  description = "Private IP of the on-premises server VM, used as the on-premises source and target in the tunnel tests."
+}
+
 output "hub_vm_name" {
   value       = azurerm_linux_virtual_machine.hub.name
   description = "Name of the hub VM, so later stages can find it."
@@ -31,5 +41,11 @@ output "spoke_vm_names" {
 output "hub_public_ip" {
   value       = azurerm_public_ip.hub.ip_address
   description = "Public IP of the hub VM, the lab's internet egress address and the IPsec endpoint."
+  sensitive   = true
+}
+
+output "onprem_gw_public_ip" {
+  value       = azurerm_public_ip.onprem-gw.ip_address
+  description = "Public IP of the on-premises gateway VM, the onprem server's internet egress address and the IPsec endpoint."
   sensitive   = true
 }

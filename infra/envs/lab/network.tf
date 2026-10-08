@@ -30,7 +30,14 @@ locals {
     "snet-tier0-workload" = { vnet = "tier0", prefix = "10.101.0.0/24" }
     "snet-tier1-workload" = { vnet = "tier1", prefix = "10.102.0.0/24" }
     "snet-tier2-workload" = { vnet = "tier2", prefix = "10.103.0.0/24" }
-    "snet-onprem-core"    = { vnet = "onprem", prefix = "10.0.0.0/24" }
+  }
+
+  # On-premises subnets are deliberately not peered to Azure. They reach it
+  # only through the IPsec tunnel, so the tunnel is the only path that can 
+  # be used to reach them. 
+  onprem_subnets = {
+    "snet-onprem-gw"  = { vnet = "onprem", prefix = "10.0.0.0/24" }
+    "snet-onprem-srv" = { vnet = "onprem", prefix = "10.0.1.0/24" }
   }
 
   spokes = toset(["tier0", "tier1", "tier2"])
@@ -65,6 +72,15 @@ resource "azurerm_subnet" "workload" {
   address_prefixes     = [each.value.prefix]
 }
 
+resource "azurerm_subnet" "onprem" {
+  for_each = local.onprem_subnets
+
+  name                 = each.key
+  resource_group_name  = azurerm_resource_group.lab.name
+  virtual_network_name = azurerm_virtual_network.this[each.value.vnet].name
+  address_prefixes     = [each.value.prefix]
+}
+
 # Baseline NSGs, carrying Azure's default rules only. Those deny inbound
 # traffic from the internet but ALLOW everything within and between peered
 # virtual networks -- the VirtualNetwork service tag includes peered address
@@ -76,6 +92,15 @@ resource "azurerm_subnet" "workload" {
 # are isolated.
 resource "azurerm_network_security_group" "workload" {
   for_each = local.workload_subnets
+
+  name                = replace(each.key, "snet-", "nsg-")
+  resource_group_name = azurerm_resource_group.lab.name
+  location            = azurerm_resource_group.lab.location
+  tags                = local.common_tags
+}
+
+resource "azurerm_network_security_group" "onprem" {
+  for_each = local.onprem_subnets
 
   name                = replace(each.key, "snet-", "nsg-")
   resource_group_name = azurerm_resource_group.lab.name
@@ -111,11 +136,32 @@ resource "azurerm_network_security_rule" "tier2-tier0" {
   network_security_group_name = azurerm_network_security_group.workload["snet-tier0-workload"].name
 }
 
+resource "azurerm_network_security_rule" "gw_allow" {
+  name                        = "AllowForwardedFromOnprem"
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "*"
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefix       = local.vnets["onprem"]
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.lab.name
+  network_security_group_name = azurerm_network_security_group.onprem["snet-onprem-gw"].name
+}
+
 resource "azurerm_subnet_network_security_group_association" "workload" {
   for_each = local.workload_subnets
 
   subnet_id                 = azurerm_subnet.workload[each.key].id
   network_security_group_id = azurerm_network_security_group.workload[each.key].id
+}
+
+resource "azurerm_subnet_network_security_group_association" "onprem" {
+  for_each = local.onprem_subnets
+
+  subnet_id                 = azurerm_subnet.onprem[each.key].id
+  network_security_group_id = azurerm_network_security_group.onprem[each.key].id
 }
 
 # Hub-and-spoke peering. Spokes peer only to the hub, never to each other, so
@@ -167,6 +213,15 @@ resource "azurerm_virtual_network_peering" "spoke_to_hub" {
 
 resource "azurerm_public_ip" "hub" {
   name                = "pip-cne-hub"
+  resource_group_name = azurerm_resource_group.lab.name
+  location            = azurerm_resource_group.lab.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = local.common_tags
+}
+
+resource "azurerm_public_ip" "onprem-gw" {
+  name                = "pip-cne-onprem-gw"
   resource_group_name = azurerm_resource_group.lab.name
   location            = azurerm_resource_group.lab.location
   allocation_method   = "Static"
