@@ -136,6 +136,20 @@ resource "azurerm_network_security_rule" "tier2-tier0" {
   network_security_group_name = azurerm_network_security_group.workload["snet-tier0-workload"].name
 }
 
+resource "azurerm_network_security_rule" "hub_ipsec_allow" {
+  name                        = "AllowIPSecFromOnprem"
+  priority                    = 300
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Udp"
+  source_port_range           = "*"
+  destination_port_range      = "4500"
+  source_address_prefix       = azurerm_public_ip.onprem-gw.ip_address
+  destination_address_prefix  = azurerm_network_interface.hub.private_ip_address
+  resource_group_name         = azurerm_resource_group.lab.name
+  network_security_group_name = azurerm_network_security_group.workload["snet-hub-nva"].name
+}
+
 resource "azurerm_network_security_rule" "gw_allow" {
   name                        = "AllowForwardedFromOnprem"
   priority                    = 100
@@ -146,6 +160,20 @@ resource "azurerm_network_security_rule" "gw_allow" {
   destination_port_range      = "*"
   source_address_prefix       = local.vnets["onprem"]
   destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.lab.name
+  network_security_group_name = azurerm_network_security_group.onprem["snet-onprem-gw"].name
+}
+
+resource "azurerm_network_security_rule" "gw_ipsec_allow" {
+  name                        = "AllowIPSecFromHub"
+  priority                    = 300
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Udp"
+  source_port_range           = "*"
+  destination_port_range      = "4500"
+  source_address_prefix       = azurerm_public_ip.hub.ip_address
+  destination_address_prefix  = azurerm_network_interface.onprem-gw.private_ip_address
   resource_group_name         = azurerm_resource_group.lab.name
   network_security_group_name = azurerm_network_security_group.onprem["snet-onprem-gw"].name
 }

@@ -107,7 +107,15 @@ resource "azurerm_linux_virtual_machine" "hub" {
   admin_username      = "azureuser"
   tags                = local.common_tags
 
-  custom_data = base64encode(file("${path.module}/cloud-init-nva.yaml"))
+  custom_data = base64encode(templatefile("${path.module}/cloud-init-nva.yaml", {
+    psk          = random_password.ipsec_psk.result
+    local_addr   = "10.100.2.4"
+    peer_addr    = azurerm_public_ip.onprem-gw.ip_address
+    local_id     = "hub.cne.lab"
+    peer_id      = "onprem.cne.lab"
+    tunnel_addr  = "169.254.100.1/30"
+    start_action = "none"
+  }))
 
   network_interface_ids = [
     azurerm_network_interface.hub.id,
@@ -171,7 +179,15 @@ resource "azurerm_linux_virtual_machine" "onprem-gw" {
   admin_username      = "azureuser"
   tags                = local.common_tags
 
-  custom_data = base64encode(file("${path.module}/cloud-init-gw.yaml"))
+  custom_data = base64encode(templatefile("${path.module}/cloud-init-gw.yaml", {
+    psk          = random_password.ipsec_psk.result
+    local_addr   = "10.0.0.4"
+    peer_addr    = azurerm_public_ip.hub.ip_address
+    local_id     = "onprem.cne.lab"
+    peer_id      = "hub.cne.lab"
+    tunnel_addr  = "169.254.100.2/30"
+    start_action = "start"
+  }))
 
   network_interface_ids = [
     azurerm_network_interface.onprem-gw.id,
