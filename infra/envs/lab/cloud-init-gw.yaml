@@ -1,4 +1,8 @@
 #cloud-config
+package_update: true
+packages:
+  - strongswan-swanctl
+  - charon-systemd
 
 write_files:
   # Enable IP forwarding for IPv4
@@ -29,6 +33,8 @@ write_files:
           ct state invalid drop
           iif "lo" accept
           ip saddr 168.63.129.16 accept
+          ip saddr ${peer_addr} udp dport 4500 counter accept
+          iifname "ipsec0" ip saddr 169.254.100.0/30 counter accept
           ip saddr @allowed_v4 accept
         }
  
@@ -52,8 +58,76 @@ write_files:
         }
       }
 
+  - path: /etc/swanctl/conf.d/s2s.conf
+    owner: root:root
+    # Permission: 0600 is required to only allow root to 
+    # read the file, as it contains the pre-shared key.
+    permissions: "0600"
+    content: |
+      connections {
+        s2s {
+          version = 2
+          local_addrs  = ${local_addr}
+          remote_addrs = ${peer_addr}
+          remote_port  = 4500
+          encap        = yes
+          proposals    = aes256gcm16-prfsha384-ecp384
+          dpd_delay    = 30s
+
+          local {
+            auth = psk
+            id   = ${local_id}
+          }
+          remote {
+            auth = psk
+            id   = ${peer_id}
+          }
+
+          children {
+            net {
+              local_ts      = 0.0.0.0/0
+              remote_ts     = 0.0.0.0/0
+              esp_proposals = aes256gcm16-ecp384
+              if_id_in      = 42
+              if_id_out     = 42
+              dpd_action    = restart
+              start_action  = ${start_action}
+            }
+          }
+        }
+      }
+
+      secrets {
+        ike-s2s {
+          id-1   = ${local_id}
+          id-2   = ${peer_id}
+          secret = "${psk}"
+        }
+      }
+
+  - path: /etc/systemd/network/50-ipsec0.netdev
+    content: |
+      [NetDev]
+      Name=ipsec0
+      Kind=xfrm
+
+      [Xfrm]
+      InterfaceId=42
+      Independent=yes
+
+  - path: /etc/systemd/network/50-ipsec0.network
+    content: |
+      [Match]
+      Name=ipsec0
+
+      [Network]
+      Address=${tunnel_addr}
+
 runcmd:
   # Apply the sysctl settings
   - sysctl --system
   # Apply the nftables configuration
   - systemctl enable --now nftables
+  - networkctl reload
+  - systemctl enable --now strongswan
+  - swanctl --load-all
