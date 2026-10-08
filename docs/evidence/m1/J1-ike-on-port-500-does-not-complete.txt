@@ -1,0 +1,70 @@
+### 2026-10-07
+### test: with remote_port = 4500 but the default local port, the tunnel does not come up — and every layer up to the IKE daemon reports nothing wrong
+### note: the hub's public address is <nva-public-ip>; the gateway's is <onprem-gw-public-ip>.
+### note: swanctl prints "plugin '...': failed to load" for thirteen optional plugins on every call; these lines are omitted. gcm and openssl, which the proposals need, are not among them.
+### note: the gateway sends from its local port 500 to the hub's port 4500. A packet sent to 4500 must carry a four-byte non-ESP marker; one sent from the port-500 socket does not, so the hub's kernel takes it for ESP, finds no SA, and drops it before the daemon sees it. Fixed by local_port = 4500 at both ends (J2).
+
+### (a) on-premises gateway: the IKE_SA never leaves CONNECTING
+### cmd: az vm run-command invoke -g $RG -n vm-cne-onprem-gw --command-id RunShellScript --scripts "swanctl --list-sas; echo ---; ip -s link show ipsec0" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+s2s: #1, CONNECTING, IKEv2, 4c9ec563c8400f71_i* 0000000000000000_r
+  local  '%any' @ 10.0.0.4[500]
+  remote '%any' @ <nva-public-ip>[4500]
+  active:  IKE_VENDOR IKE_INIT IKE_NATD IKE_CERT_PRE IKE_AUTH IKE_CERT_POST IKE_CONFIG IKE_AUTH_LIFETIME IKE_MOBIKE IKE_ESTABLISH CHILD_CREATE
+---
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+             0       0      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+             0       0      6       6       6       0
+
+### (b) hub: no IKE_SA at all
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "swanctl --list-sas; echo ---; ip -s link show ipsec0" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+---
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+             0       0      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+             0       0      4       4       4       0
+
+### (c) hub: the packets passed the NSG and nftables (4 packets / 1296 bytes = 4 x 324, the IKE_SA_INIT request) — and the daemon logged nothing about them
+### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "nft list chain inet filter input; echo ---; journalctl -u strongswan --no-pager | tail -20" --query "value[0].message" -o tsv
+### (journal reduced to the lines after the plugin warnings)
+
+Enable succeeded:
+[stdout]
+table inet filter {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		ct state established,related accept
+		ct state invalid drop
+		iif "lo" accept
+		ip saddr 168.63.129.16 accept
+		ip saddr <onprem-gw-public-ip> udp dport 4500 counter packets 4 bytes 1296 accept
+		iifname "ipsec0" ip saddr 169.254.100.0/30 counter packets 0 bytes 0 accept
+		ip saddr @allowed_v4 accept
+	}
+}
+---
+Oct 08 05:09:50 vm-cne-hub charon-systemd[1719]: loaded IKE shared key with id 'ike-s2s' for: 'hub.cne.lab', 'onprem.cne.lab'
+Oct 08 05:09:50 vm-cne-hub charon-systemd[1719]: added vici connection: s2s
+Oct 08 05:09:50 vm-cne-hub swanctl[1747]: loaded ike secret 'ike-s2s'
+Oct 08 05:09:50 vm-cne-hub swanctl[1747]: no authorities found, 0 unloaded
+Oct 08 05:09:50 vm-cne-hub swanctl[1747]: no pools found, 0 unloaded
+Oct 08 05:09:50 vm-cne-hub swanctl[1747]: loaded connection 's2s'
+Oct 08 05:09:50 vm-cne-hub swanctl[1747]: successfully loaded 1 connections, 0 unloaded
+Oct 08 05:09:50 vm-cne-hub systemd[1]: Started strongswan.service - strongSwan IPsec IKEv1/IKEv2 daemon using swanctl.
+Oct 08 05:09:54 vm-cne-hub charon-systemd[1719]: 10.100.2.4 disappeared from eth0
+Oct 08 05:09:54 vm-cne-hub charon-systemd[1719]: interface ipsec0 activated
+Oct 08 05:09:54 vm-cne-hub charon-systemd[1719]: fe80::dc75:e48:74d4:e20b appeared on ipsec0
+Oct 08 05:09:54 vm-cne-hub charon-systemd[1719]: 169.254.100.1 appeared on ipsec0
+Oct 08 05:09:54 vm-cne-hub charon-systemd[1719]: 10.100.2.4 appeared on eth0
+Oct 08 05:09:54 vm-cne-hub charon-systemd[1719]: loaded IKE shared key with id 'ike-s2s' for: 'hub.cne.lab', 'onprem.cne.lab'
+Oct 08 05:09:54 vm-cne-hub charon-systemd[1719]: updated vici connection: s2s
