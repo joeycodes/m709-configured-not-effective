@@ -32,6 +32,38 @@ resource "azurerm_network_interface" "hub" {
   }
 }
 
+# Create network interface for onprem server virtual machine
+resource "azurerm_network_interface" "onprem-srv" {
+  name                = "nic-cne-onprem-srv"
+  location            = azurerm_resource_group.lab.location
+  resource_group_name = azurerm_resource_group.lab.name
+  tags                = local.common_tags
+
+  ip_configuration {
+    name                          = "onprem-srv-nic-conf"
+    subnet_id                     = azurerm_subnet.onprem["snet-onprem-srv"].id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+# Create network interface for onprem gateway virtual machine
+resource "azurerm_network_interface" "onprem-gw" {
+  #checkov:skip=CKV_AZURE_119:The on-premises gateway terminates the IPsec tunnel and needs a public address for it. Inbound from the internet is denied by the subnet NSG.
+  name                = "nic-cne-onprem-gw"
+  location              = azurerm_resource_group.lab.location
+  resource_group_name   = azurerm_resource_group.lab.name
+  tags                  = local.common_tags
+  ip_forwarding_enabled = true
+
+  ip_configuration {
+    name                          = "onprem-gw-nic-conf"
+    subnet_id                     = azurerm_subnet.onprem["snet-onprem-gw"].id
+    private_ip_address_allocation = "Static"
+    private_ip_address            = "10.0.0.4"
+    public_ip_address_id          = azurerm_public_ip.onprem-gw.id
+  }
+}
+
 # Create virtual machine
 resource "azurerm_linux_virtual_machine" "spoke" {
   #checkov:skip=CKV_AZURE_50:Extension operations are the only management path; no VM has a public IP or an inbound management port, so run-command replaces SSH rather than adding to it
@@ -79,6 +111,70 @@ resource "azurerm_linux_virtual_machine" "hub" {
 
   network_interface_ids = [
     azurerm_network_interface.hub.id,
+  ]
+
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = var.admin_ssh_public_key
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "ubuntu-24_04-lts"
+    sku       = "server"
+    version   = "latest"
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "onprem-srv" {
+  #checkov:skip=CKV_AZURE_50:Extension operations are the only management path; no VM has an inbound management port open, so run-command replaces SSH rather than adding to it
+  name                = "vm-cne-onprem-srv"
+  resource_group_name = azurerm_resource_group.lab.name
+  location            = azurerm_resource_group.lab.location
+  size                = var.srv_vm_size
+  admin_username      = "azureuser"
+  tags                = local.common_tags
+
+  network_interface_ids = [
+    azurerm_network_interface.onprem-srv.id,
+  ]
+
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = var.admin_ssh_public_key
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "ubuntu-24_04-lts"
+    sku       = "server"
+    version   = "latest"
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "onprem-gw" {
+  #checkov:skip=CKV_AZURE_50:Extension operations are the only management path; no VM has an inbound management port open, so run-command replaces SSH rather than adding to it
+  name                = "vm-cne-onprem-gw"
+  resource_group_name = azurerm_resource_group.lab.name
+  location            = azurerm_resource_group.lab.location
+  size                = var.gw_vm_size
+  admin_username      = "azureuser"
+  tags                = local.common_tags
+
+  custom_data = base64encode(file("${path.module}/cloud-init-gw.yaml"))
+
+  network_interface_ids = [
+    azurerm_network_interface.onprem-gw.id,
   ]
 
   admin_ssh_key {

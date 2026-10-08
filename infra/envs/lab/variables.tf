@@ -58,3 +58,15 @@ variable "endpoint_vm_size" {
   description = "Size of the spoke endpoint VMs."
   default     = "Standard_D2ls_v6"
 }
+
+variable "gw_vm_size" {
+  type        = string
+  description = "Size of the onprem gateway VM."
+  default     = "Standard_D2s_v6"
+}
+
+variable "srv_vm_size" {
+  type        = string
+  description = "Size of the onprem server VM."
+  default     = "Standard_D2ls_v6"
+}
