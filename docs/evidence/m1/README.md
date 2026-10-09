@@ -6,7 +6,8 @@ Tier endpoints in `10.101.0.0/16`, `10.102.0.0/16` and `10.103.0.0/16`, none
 with a public IP. On-premises site in `10.0.0.0/16`, not peered: a gateway
 `10.0.0.4` with a public IP and a server in `10.0.1.0/24` routed through it.
 The two gateways are joined by an IKEv2 tunnel on UDP 4500, route-based
-through `ipsec0` (`169.254.100.1` and `.2`).
+through `ipsec0` (`169.254.100.1` and `.2`), and run eBGP across it (hub
+AS 65010, gateway AS 65020), each advertising its own aggregate.
 
 This page is an index. The commands, outputs and dates are in the files; each
 file's header states the assertion it tests. Design intent is in
@@ -33,6 +34,9 @@ shown, is under *Open gaps*.
 | I2 | Before the tunnel exists there is no path between on-premises and Azure |
 | J2 | The IPsec tunnel establishes on the NAT-T port at both ends |
 | J3 | Data crosses the tunnel in both directions, and the two ends account for it identically |
+| K1 | eBGP is established over the tunnel; each gateway learns only the other's aggregate and installs it in the kernel |
+| K3 | Forwarded traffic between the two aggregates is allowed outbound at both gateways' NSGs, and nothing wider |
+| K4 | The on-premises server and tier-1 reach each other through the tunnel in both directions, seen at every hop |
 
 The evidence for each ID is in this directory, in the file or files whose name
 begins with that ID, for example `G5-inbound-from-internet.txt`.
@@ -86,9 +90,14 @@ re-run uses tier-1 → tier-0.
   the NVA drops those packets first.
 - **G1 covers tier-2 only.** It does not show that run-command works on a VM
   with no egress.
-- **`ipsec0` counts transmit errors that grow on their own.** A few every few
-  minutes on both gateways, independent of the tested traffic. The working
-  hypothesis is IPv6 link-local traffic, which no SA covers; untested. (J2, J3)
+- **`ipsec0` transmit errors are reduced, not shown to be gone.** With
+  link-local addressing off, `ipsec0` has no IPv6 address and the hub reads 0
+  errors; the gateway reads 1 after about 90 minutes, against 7-8 and growing
+  before. Whether that one recurs is not yet read. (J3, K1)
+- **BGP routes stop at the gateways.** They are in FRR and the kernel on both
+  gateways, not in Azure effective routes; the tiers reach on-premises through
+  their default route to the NVA. The schedule's M1 gate asks for effective
+  routes. (K1, G2)
 - **The hub's port-4500 rule reads zero once the tunnel is up.** Its traffic
   matches `ct state established` first, consistent with the tunnel having been
   negotiated before the ruleset was loaded at boot; unconfirmed. (J2 c)

@@ -1,0 +1,90 @@
+### 2026-10-09
+### test: eBGP is established over the tunnel; each gateway receives exactly one prefix, the other side's aggregate, and installs it in the kernel via ipsec0
+### note: hub AS 65010, gateway AS 65020, peering on the tunnel addresses. PfxRcd 1 / PfxSnt 1 on both sides: the prefix-lists pass the one aggregate each way.
+### note: the kernel route carries metric 20, FRR's default for eBGP routes. Neither gateway's 10.x route is visible in Azure effective routes; the tiers reach on-premises through their default route to the NVA (G2).
+### note: ipsec0 runs with MTU 1400 and no IPv6 address (ipv6_lines=0), from LinkLocalAddressing=no and MTUBytes=1400. TX errors read 0 on the hub and 1 on the gateway, after about 1 h 33 min of uptime; compare J3, where both ends read 7-8 and kept growing.
+
+### (a) hub and (b) gateway
+### cmd: for vm in vm-cne-hub vm-cne-onprem-gw; do echo "##### $vm"; az vm run-command invoke -g $RG -n $vm --command-id RunShellScript --scripts "vtysh -c 'show bgp summary'; echo ---; vtysh -c 'show ip bgp'; echo ---; ip route show proto bgp; echo ---; ip -s link show ipsec0; ip -6 addr show dev ipsec0; echo ipv6_lines=\$(ip -6 addr show dev ipsec0 | wc -l)" --query "value[0].message" -o tsv; done
+
+##### vm-cne-hub
+Enable succeeded:
+[stdout]
+
+IPv4 Unicast Summary (VRF default):
+BGP router identifier 169.254.100.1, local AS number 65010 vrf-id 0
+BGP table version 2
+RIB entries 3, using 576 bytes of memory
+Peers 1, using 724 KiB of memory
+
+Neighbor        V         AS   MsgRcvd   MsgSent   TblVer  InQ OutQ  Up/Down State/PfxRcd   PfxSnt Desc
+169.254.100.2   4      65020        99        98        0    0    0 01:32:34            1        1 onprem-gw
+
+Total number of neighbors 1
+---
+BGP table version is 2, local router ID is 169.254.100.1, vrf id 0
+Default local pref 100, local AS 65010
+Status codes:  s suppressed, d damped, h history, * valid, > best, = multipath,
+               i internal, r RIB-failure, S Stale, R Removed
+Nexthop codes: @NNN nexthop's vrf id, < announce-nh-self
+Origin codes:  i - IGP, e - EGP, ? - incomplete
+RPKI validation codes: V valid, I invalid, N Not found
+
+   Network          Next Hop            Metric LocPrf Weight Path
+*> 10.0.0.0/16      169.254.100.2            0             0 65020 i
+*> 10.100.0.0/14    0.0.0.0                  0         32768 i
+
+Displayed  2 routes and 2 total paths
+---
+10.0.0.0/16 nhid 23 via 169.254.100.2 dev ipsec0 metric 20
+---
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1400 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+          9100     128      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+         12475     199      0       0       0       0
+ipv6_lines=0
+
+[stderr]
+
+##### vm-cne-onprem-gw
+Enable succeeded:
+[stdout]
+
+IPv4 Unicast Summary (VRF default):
+BGP router identifier 169.254.100.2, local AS number 65020 vrf-id 0
+BGP table version 2
+RIB entries 3, using 576 bytes of memory
+Peers 1, using 724 KiB of memory
+
+Neighbor        V         AS   MsgRcvd   MsgSent   TblVer  InQ OutQ  Up/Down State/PfxRcd   PfxSnt Desc
+169.254.100.1   4      65010        99       100        0    0    0 01:33:06            1        1 hub
+
+Total number of neighbors 1
+---
+BGP table version is 2, local router ID is 169.254.100.2, vrf id 0
+Default local pref 100, local AS 65020
+Status codes:  s suppressed, d damped, h history, * valid, > best, = multipath,
+               i internal, r RIB-failure, S Stale, R Removed
+Nexthop codes: @NNN nexthop's vrf id, < announce-nh-self
+Origin codes:  i - IGP, e - EGP, ? - incomplete
+RPKI validation codes: V valid, I invalid, N Not found
+
+   Network          Next Hop            Metric LocPrf Weight Path
+*> 10.0.0.0/16      0.0.0.0                  0         32768 i
+*> 10.100.0.0/14    169.254.100.1            0             0 65010 i
+
+Displayed  2 routes and 2 total paths
+---
+10.100.0.0/14 nhid 23 via 169.254.100.1 dev ipsec0 metric 20
+---
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1400 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+         12598     201      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+          9171     129      1       1       1       0
+ipv6_lines=0
+
+[stderr]

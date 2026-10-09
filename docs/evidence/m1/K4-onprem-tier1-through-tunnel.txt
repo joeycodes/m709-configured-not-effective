@@ -1,0 +1,170 @@
+### 2026-10-09
+### test: the on-premises server and tier-1 reach each other through the tunnel in both directions, and every hop on the path sees the request and the reply
+### note: id 1872 is srv -> tier-1 (10.0.1.4 -> 10.102.0.4), id 1939 is tier-1 -> srv. TTL 62 in both directions: two forwarding hops, the on-premises gateway and the hub.
+### note: the path read from the captures: srv -> gateway eth0 In -> ipsec0 Out -> hub ipsec0 In -> eth0 Out -> tier-1 eth0 In, and the reverse for the reply. Traffic forwarded through the hub is not NATed: tier-1 sees 10.0.1.4 as the source.
+### note: ens1 and eth0 are the same NIC (ens1 is the accelerated-networking VF), so each packet appears on both: 6 lines per echo on each gateway, 4 on tier-1.
+### note: the stop step reports "Unit cap2.service not loaded": the transient unit was already gone when it was stopped. Both pings are complete on all three hosts, so the captures cover the test window; the cause was not investigated. "interface names might be incorrect" is tcpdump's warning when reading a cooked-v2 file.
+### note: before the NSG rules in K3, the same capture showed the request leaving the hub's eth0 and nothing arriving at tier-1.
+
+### (a) capture started on hub, gateway and tier-1 (output not kept)
+### cmd: for vm in vm-cne-hub vm-cne-onprem-gw vm-cne-tier1; do az vm run-command invoke -g $RG -n $vm --command-id RunShellScript --scripts "systemctl stop cap2 2>/dev/null; systemctl reset-failed cap2 2>/dev/null; rm -f /tmp/cap2.pcap; systemd-run --unit=cap2 tcpdump -U -ni any -w /tmp/cap2.pcap 'icmp and host 10.0.1.4'; sleep 1; systemctl is-active cap2" --query "value[0].message" -o tsv; done
+
+### (b) on-premises server -> tier-1
+### cmd: az vm run-command invoke -g $RG -n vm-cne-onprem-srv --command-id RunShellScript --scripts "ping -c3 -W2 10.102.0.4; echo exit=\$?" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 10.102.0.4 (10.102.0.4) 56(84) bytes of data.
+64 bytes from 10.102.0.4: icmp_seq=1 ttl=62 time=13.0 ms
+64 bytes from 10.102.0.4: icmp_seq=2 ttl=62 time=18.5 ms
+64 bytes from 10.102.0.4: icmp_seq=3 ttl=62 time=9.40 ms
+
+--- 10.102.0.4 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 9.401/13.629/18.462/3.723 ms
+exit=0
+
+[stderr]
+
+### (c) tier-1 -> on-premises server
+### cmd: az vm run-command invoke -g $RG -n vm-cne-tier1 --command-id RunShellScript --scripts "ping -c3 -W2 10.0.1.4; echo exit=\$?" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 10.0.1.4 (10.0.1.4) 56(84) bytes of data.
+64 bytes from 10.0.1.4: icmp_seq=1 ttl=62 time=16.4 ms
+64 bytes from 10.0.1.4: icmp_seq=2 ttl=62 time=13.9 ms
+64 bytes from 10.0.1.4: icmp_seq=3 ttl=62 time=5.70 ms
+
+--- 10.0.1.4 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 5.696/12.019/16.442/4.588 ms
+exit=0
+
+[stderr]
+
+### (d) captures read on hub, gateway and tier-1
+### cmd: for vm in vm-cne-hub vm-cne-onprem-gw vm-cne-tier1; do echo "##### $vm"; az vm run-command invoke -g $RG -n $vm --command-id RunShellScript --scripts "systemctl stop cap2; tcpdump -nr /tmp/cap2.pcap" --query "value[0].message" -o tsv; done
+
+##### vm-cne-hub
+Enable succeeded:
+[stdout]
+23:01:24.410252 ipsec0 In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 1, length 64
+23:01:24.410279 eth0  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 1, length 64
+23:01:24.410282 ens1  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 1, length 64
+23:01:24.415441 ens1  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 1, length 64
+23:01:24.415441 eth0  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 1, length 64
+23:01:24.415446 ipsec0 Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 1, length 64
+23:01:25.417421 ipsec0 In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 2, length 64
+23:01:25.417440 eth0  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 2, length 64
+23:01:25.417443 ens1  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 2, length 64
+23:01:25.423000 ens1  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 2, length 64
+23:01:25.423000 eth0  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 2, length 64
+23:01:25.423006 ipsec0 Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 2, length 64
+23:01:26.415751 ipsec0 In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 3, length 64
+23:01:26.415766 eth0  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 3, length 64
+23:01:26.415768 ens1  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 3, length 64
+23:01:26.418643 ens1  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 3, length 64
+23:01:26.418643 eth0  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 3, length 64
+23:01:26.418648 ipsec0 Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 3, length 64
+23:01:34.057278 ens1  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 1, length 64
+23:01:34.057278 eth0  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 1, length 64
+23:01:34.057315 ipsec0 Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 1, length 64
+23:01:34.064368 ipsec0 In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 1, length 64
+23:01:34.064375 eth0  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 1, length 64
+23:01:34.064376 ens1  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 1, length 64
+23:01:35.056676 ens1  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 2, length 64
+23:01:35.056676 eth0  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 2, length 64
+23:01:35.056711 ipsec0 Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 2, length 64
+23:01:35.063476 ipsec0 In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 2, length 64
+23:01:35.063482 eth0  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 2, length 64
+23:01:35.063483 ens1  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 2, length 64
+23:01:36.053002 ens1  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 3, length 64
+23:01:36.053002 eth0  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 3, length 64
+23:01:36.053036 ipsec0 Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 3, length 64
+23:01:36.054914 ipsec0 In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 3, length 64
+23:01:36.054919 eth0  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 3, length 64
+23:01:36.054920 ens1  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 3, length 64
+
+[stderr]
+Failed to stop cap2.service: Unit cap2.service not loaded.
+reading from file /tmp/cap2.pcap, link-type LINUX_SLL2 (Linux cooked v2), snapshot length 262144
+Warning: interface names might be incorrect
+
+##### vm-cne-onprem-gw
+Enable succeeded:
+[stdout]
+23:01:24.410108 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 1, length 64
+23:01:24.410108 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 1, length 64
+23:01:24.410136 ipsec0 Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 1, length 64
+23:01:24.415571 ipsec0 In  IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 1, length 64
+23:01:24.415576 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 1, length 64
+23:01:24.415577 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 1, length 64
+23:01:25.417268 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 2, length 64
+23:01:25.417268 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 2, length 64
+23:01:25.417305 ipsec0 Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 2, length 64
+23:01:25.423128 ipsec0 In  IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 2, length 64
+23:01:25.423134 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 2, length 64
+23:01:25.423135 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 2, length 64
+23:01:26.415491 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 3, length 64
+23:01:26.415491 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 3, length 64
+23:01:26.415528 ipsec0 Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 3, length 64
+23:01:26.418770 ipsec0 In  IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 3, length 64
+23:01:26.418775 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 3, length 64
+23:01:26.418776 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 3, length 64
+23:01:34.057674 ipsec0 In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 1, length 64
+23:01:34.057700 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 1, length 64
+23:01:34.057702 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 1, length 64
+23:01:34.064284 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 1, length 64
+23:01:34.064284 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 1, length 64
+23:01:34.064290 ipsec0 Out IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 1, length 64
+23:01:35.056997 ipsec0 In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 2, length 64
+23:01:35.057017 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 2, length 64
+23:01:35.057020 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 2, length 64
+23:01:35.063400 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 2, length 64
+23:01:35.063400 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 2, length 64
+23:01:35.063405 ipsec0 Out IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 2, length 64
+23:01:36.053206 ipsec0 In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 3, length 64
+23:01:36.053226 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 3, length 64
+23:01:36.053228 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 3, length 64
+23:01:36.054838 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 3, length 64
+23:01:36.054838 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 3, length 64
+23:01:36.054843 ipsec0 Out IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 3, length 64
+
+[stderr]
+Failed to stop cap2.service: Unit cap2.service not loaded.
+reading from file /tmp/cap2.pcap, link-type LINUX_SLL2 (Linux cooked v2), snapshot length 262144
+Warning: interface names might be incorrect
+
+##### vm-cne-tier1
+Enable succeeded:
+[stdout]
+23:01:24.414489 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 1, length 64
+23:01:24.414489 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 1, length 64
+23:01:24.414532 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 1, length 64
+23:01:24.414535 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 1, length 64
+23:01:25.422131 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 2, length 64
+23:01:25.422131 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 2, length 64
+23:01:25.422171 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 2, length 64
+23:01:25.422174 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 2, length 64
+23:01:26.418529 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 3, length 64
+23:01:26.418529 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1872, seq 3, length 64
+23:01:26.418567 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 3, length 64
+23:01:26.418570 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo reply, id 1872, seq 3, length 64
+23:01:34.049939 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 1, length 64
+23:01:34.049941 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 1, length 64
+23:01:34.066370 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 1, length 64
+23:01:34.066370 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 1, length 64
+23:01:35.051483 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 2, length 64
+23:01:35.051489 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 2, length 64
+23:01:35.065369 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 2, length 64
+23:01:35.065369 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 2, length 64
+23:01:36.052535 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 3, length 64
+23:01:36.052539 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1939, seq 3, length 64
+23:01:36.058212 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 3, length 64
+23:01:36.058212 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo reply, id 1939, seq 3, length 64
+
+[stderr]
+Failed to stop cap2.service: Unit cap2.service not loaded.
+reading from file /tmp/cap2.pcap, link-type LINUX_SLL2 (Linux cooked v2), snapshot length 262144
+Warning: interface names might be incorrect
