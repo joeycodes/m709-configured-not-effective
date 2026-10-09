@@ -1,0 +1,18 @@
+### 2026-10-09
+### test: each gateway's subnet NSG allows forwarded traffic outbound between the on-premises and Azure aggregates, and only between them
+### note: needed because the default AllowVnetOutBound requires source and destination inside the NIC's VirtualNetwork tag. On the hub subnet, which has no route table, the tag does not include 10.0.0.0/16, so traffic forwarded from on-premises fell to DenyAllOutBound and was dropped silently after leaving the hub's eth0. The gateway rule mirrors it for traffic forwarded from Azure.
+### note: both rules are priority 100; source and destination are the two aggregates, no wildcards.
+
+### (a) hub subnet NSG
+### cmd: az network nsg rule show -g $RG --nsg-name nsg-hub-nva -n AllowForwardedFromOnpremOut -o table
+
+Name                         ResourceGroup    Priority    SourcePortRanges    SourceAddressPrefixes    SourceASG    Access    Protocol    Direction    DestinationPortRanges    DestinationAddressPrefixes    DestinationASG
+---------------------------  ---------------  ----------  ------------------  -----------------------  -----------  --------  ----------  -----------  -----------------------  ----------------------------  ----------------
+AllowForwardedFromOnpremOut  rg-cne-lab       100         *                   10.0.0.0/16              None         Allow     *           Outbound     *                        10.100.0.0/14                 None
+
+### (b) on-premises gateway subnet NSG
+### cmd: az network nsg rule show -g $RG --nsg-name nsg-onprem-gw -n AllowForwardedFromAzureOut -o table
+
+Name                        ResourceGroup    Priority    SourcePortRanges    SourceAddressPrefixes    SourceASG    Access    Protocol    Direction    DestinationPortRanges    DestinationAddressPrefixes    DestinationASG
+--------------------------  ---------------  ----------  ------------------  -----------------------  -----------  --------  ----------  -----------  -----------------------  ----------------------------  ----------------
+AllowForwardedFromAzureOut  rg-cne-lab       100         *                   10.100.0.0/14            None         Allow     *           Outbound     *                        10.0.0.0/16                   None
