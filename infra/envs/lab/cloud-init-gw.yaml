@@ -3,6 +3,7 @@ package_update: true
 packages:
   - strongswan-swanctl
   - charon-systemd
+  - frr
 
 write_files:
   # Enable IP forwarding for IPv4
@@ -123,6 +124,44 @@ write_files:
 
       [Network]
       Address=${tunnel_addr}
+      LinkLocalAddressing=no
+
+      [Link]
+      MTUBytes=1400
+
+  - path: /etc/frr/frr.conf
+    owner: frr:frr
+    permissions: "0640"
+    defer: true
+    content: |
+      frr defaults traditional
+      hostname vm-cne-onprem-gw
+      log syslog informational
+      !
+      ip route 10.0.0.0/16 10.0.0.1
+      !
+      ip prefix-list ACCEPT seq 10 permit 10.100.0.0/14
+      ip prefix-list ADVERTISE seq 10 permit 10.0.0.0/16
+      !
+      route-map TO-HUB permit 10
+        match ip address prefix-list ADVERTISE
+      !
+      route-map FROM-HUB permit 10
+        match ip address prefix-list ACCEPT
+      !
+      router bgp 65020
+        bgp router-id 169.254.100.2
+        neighbor 169.254.100.1 remote-as 65010
+        neighbor 169.254.100.1 description hub
+        bgp log-neighbor-changes
+      !
+        address-family ipv4 unicast
+        network 10.0.0.0/16
+        neighbor 169.254.100.1 route-map FROM-HUB in
+        neighbor 169.254.100.1 route-map TO-HUB out
+        neighbor 169.254.100.1 maximum-prefix 10
+        exit-address-family
+      !
 
 runcmd:
   # Apply the sysctl settings
@@ -132,3 +171,5 @@ runcmd:
   - networkctl reload
   - systemctl enable --now strongswan
   - swanctl --load-all
+  - sed -i 's/^bgpd=no/bgpd=yes/' /etc/frr/daemons
+  - systemctl restart frr
