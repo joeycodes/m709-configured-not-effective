@@ -150,6 +150,20 @@ resource "azurerm_network_security_rule" "hub_ipsec_allow" {
   network_security_group_name = azurerm_network_security_group.workload["snet-hub-nva"].name
 }
 
+resource "azurerm_network_security_rule" "hub_allow_onprem_out" {
+  name                        = "AllowForwardedFromOnpremOut"
+  priority                    = 100
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "*"
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefix       = local.vnets["onprem"]
+  destination_address_prefix  = "10.100.0.0/14"
+  resource_group_name         = azurerm_resource_group.lab.name
+  network_security_group_name = azurerm_network_security_group.workload["snet-hub-nva"].name
+}
+
 resource "azurerm_network_security_rule" "gw_allow" {
   name                        = "AllowForwardedFromOnprem"
   priority                    = 100
@@ -174,6 +188,20 @@ resource "azurerm_network_security_rule" "gw_ipsec_allow" {
   destination_port_range      = "4500"
   source_address_prefix       = azurerm_public_ip.hub.ip_address
   destination_address_prefix  = azurerm_network_interface.onprem-gw.private_ip_address
+  resource_group_name         = azurerm_resource_group.lab.name
+  network_security_group_name = azurerm_network_security_group.onprem["snet-onprem-gw"].name
+}
+
+resource "azurerm_network_security_rule" "gw_allow_azure_out" {
+  name                        = "AllowForwardedFromAzureOut"
+  priority                    = 100
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "*"
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefix       = "10.100.0.0/14"
+  destination_address_prefix  = local.vnets["onprem"]
   resource_group_name         = azurerm_resource_group.lab.name
   network_security_group_name = azurerm_network_security_group.onprem["snet-onprem-gw"].name
 }
