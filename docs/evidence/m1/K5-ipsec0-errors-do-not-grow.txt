@@ -1,0 +1,116 @@
+### 2026-10-10
+### test: with link-local addressing off, ipsec0 transmit errors do not grow: any error seen is a single one at start-up
+### note: first reading at 18:11 in L1 (d): hub TX errors 1, gateway 0. The readings below run to 19:04, about an hour after boot, with tunnel traffic in between (K2) and the TX packet counts rising throughout; the error counts stay at 1 and 0.
+### note: on the K1 build the single error was on the gateway and the hub read 0. Which end counts it differs between builds, consistent with one packet sent into ipsec0 at start-up before the SA is installed on that end; the mechanism is not confirmed.
+### note: before LinkLocalAddressing=no, both ends counted 7-8 errors within minutes and kept growing (J3).
+### note: each end's TX packets equal the other's RX packets when read close together (18:36: 53 / 53 and 85 / 85); the pairs read 35 s apart differ by a keepalive or so.
+
+### cmd: for vm in vm-cne-hub vm-cne-onprem-gw; do echo "##### $vm"; az vm run-command invoke -g $RG -n $vm --command-id RunShellScript --scripts "date -u; ip -s link show ipsec0" --query "value[0].message" -o tsv; done
+
+### (a) 18:36
+##### vm-cne-hub
+Enable succeeded:
+[stdout]
+Sat Oct 10 18:36:28 UTC 2026
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1400 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+          5605      85      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+          3958      53      1       1       1       0
+
+[stderr]
+
+##### vm-cne-onprem-gw
+Enable succeeded:
+[stdout]
+Sat Oct 10 18:36:58 UTC 2026
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1400 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+          3958      53      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+          5605      85      0       0       0       0
+
+[stderr]
+
+### (b) 18:51
+##### vm-cne-hub
+Enable succeeded:
+[stdout]
+Sat Oct 10 18:51:40 UTC 2026
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1400 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+          7294     112      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+          5283      73      1       1       1       0
+
+[stderr]
+
+##### vm-cne-onprem-gw
+Enable succeeded:
+[stdout]
+Sat Oct 10 18:52:15 UTC 2026
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1400 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+          5406      75      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+          7365     113      0       0       0       0
+
+[stderr]
+
+### (c) 18:57
+##### vm-cne-hub
+Enable succeeded:
+[stdout]
+Sat Oct 10 18:57:25 UTC 2026
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1400 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+          7928     122      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+          5865      82      1       1       1       0
+
+[stderr]
+
+##### vm-cne-onprem-gw
+Enable succeeded:
+[stdout]
+Sat Oct 10 18:58:00 UTC 2026
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1400 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+          5865      82      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+          7928     122      0       0       0       0
+
+[stderr]
+
+### (d) 19:04
+##### vm-cne-hub
+Enable succeeded:
+[stdout]
+Sat Oct 10 19:03:52 UTC 2026
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1400 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+          8666     134      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+          6395      90      1       1       1       0
+
+[stderr]
+
+##### vm-cne-onprem-gw
+Enable succeeded:
+[stdout]
+Sat Oct 10 19:04:28 UTC 2026
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1400 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+          6518      92      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+          8737     135      0       0       0       0
+
+[stderr]

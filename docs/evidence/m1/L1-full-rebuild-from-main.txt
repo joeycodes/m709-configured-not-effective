@@ -1,0 +1,96 @@
+### 2026-10-10
+### test: the whole lab is built from main in one pipeline run, starting from no resource group, and the time to a usable environment is recorded
+### note: two times are recorded. Apply: run created 18:00:35, Apply complete 18:04:50 (4 min 15 s; the Apply step alone 3 min 54 s). Tunnel and routing: BGP Established 18:04:13 on both gateways (date -u minus the session's Up/Down: 18:11:11 - 6:58 and 18:11:46 - 7:33), 3 min 38 s after the run was created and 37 s before apply finished.
+### note: the gateways boot early (hub 18:02:36, gateway 18:03:24) and cloud-init completes while Terraform is still creating peerings, so cloud-init is not on the critical path. On-premises to the tiers needs the peerings, so the environment is usable at Apply complete: about 4 min 15 s.
+### note: the slowest resources are all peerings, each slower than the last (52 s to 2 min 24 s); the VMs take about 48 s. Consistent with peering operations on the hub VNet being serialised; not investigated.
+### note: literal ^[[0m^[[1m colour sequences from the log are removed throughout; the "Creation complete" lines are trimmed to duration and resource address; the step JSON is compacted to one line per step, values unchanged.
+### note: the ipsec0 counters in (d) are the first K5 reading.
+
+### (a) before the run
+### cmd: az group exists -n rg-cne-lab
+
+false
+
+### (b) the run: plan, result and step times
+### cmd: gh workflow run apply.yml --ref main; RUN=$(gh run list --workflow apply.yml -L1 --json databaseId -q '.[0].databaseId'); gh run watch $RUN --exit-status
+### cmd: gh run view $RUN --log | grep -E "Plan:|Apply complete"
+
+apply	Apply	2026-10-10T18:01:09.6446238Z Plan: 62 to add, 0 to change, 0 to destroy.
+apply	Apply	2026-10-10T18:04:50.3265960Z Apply complete! Resources: 62 added, 0 changed, 0 destroyed.
+
+### cmd: gh run view $RUN --json createdAt,updatedAt,conclusion,jobs --jq '{createdAt, updatedAt, conclusion, steps: [.jobs[0].steps[] | {name, startedAt, completedAt}]}'
+
+{
+  "conclusion": "success",
+  "createdAt": "2026-10-10T18:00:35Z",
+  "steps": [
+    { "completedAt": "2026-10-10T18:00:41Z", "name": "Set up job", "startedAt": "2026-10-10T18:00:40Z" },
+    { "completedAt": "2026-10-10T18:00:42Z", "name": "Run actions/checkout@v4", "startedAt": "2026-10-10T18:00:41Z" },
+    { "completedAt": "2026-10-10T18:00:43Z", "name": "Run hashicorp/setup-terraform@v3", "startedAt": "2026-10-10T18:00:42Z" },
+    { "completedAt": "2026-10-10T18:00:52Z", "name": "Run azure/login@v2", "startedAt": "2026-10-10T18:00:43Z" },
+    { "completedAt": "2026-10-10T18:00:56Z", "name": "Init", "startedAt": "2026-10-10T18:00:52Z" },
+    { "completedAt": "2026-10-10T18:04:50Z", "name": "Apply", "startedAt": "2026-10-10T18:00:56Z" },
+    { "completedAt": "2026-10-10T18:04:50Z", "name": "Publish apply output to job summary", "startedAt": "2026-10-10T18:04:50Z" },
+    { "completedAt": "2026-10-10T18:04:50Z", "name": "Post Run azure/login@v2", "startedAt": "2026-10-10T18:04:50Z" },
+    { "completedAt": "2026-10-10T18:04:51Z", "name": "Post Run actions/checkout@v4", "startedAt": "2026-10-10T18:04:50Z" },
+    { "completedAt": "2026-10-10T18:04:51Z", "name": "Complete job", "startedAt": "2026-10-10T18:04:51Z" }
+  ],
+  "updatedAt": "2026-10-10T18:04:53Z"
+}
+
+### (c) the eight slowest resources (seconds, duration, address)
+### cmd: gh run view $RUN --log | sed 's/\x1b\[[0-9;]*m//g' | grep "Creation complete after" | sed -E 's/.*Z (.*): Creation complete after ([0-9ms]+).*/\2 \1/' | awk '{...seconds...}' | sort -n | tail -8
+
+  47  47s     azurerm_linux_virtual_machine.spoke["tier2"]
+  48  48s     azurerm_linux_virtual_machine.hub
+  48  48s     azurerm_linux_virtual_machine.onprem-gw
+  52  52s     azurerm_virtual_network_peering.spoke_to_hub["tier0"]
+  76  1m16s   azurerm_virtual_network_peering.spoke_to_hub["tier1"]
+  99  1m39s   azurerm_virtual_network_peering.hub_to_spoke["tier1"]
+ 121  2m1s    azurerm_virtual_network_peering.hub_to_spoke["tier0"]
+ 144  2m24s   azurerm_virtual_network_peering.spoke_to_hub["tier2"]
+
+### (d) after the run: the gateways' boot time, cloud-init, BGP and ipsec0
+### cmd: az group exists -n rg-cne-lab
+
+true
+
+### cmd: for vm in vm-cne-hub vm-cne-onprem-gw; do echo "##### $vm"; az vm run-command invoke -g $RG -n $vm --command-id RunShellScript --scripts "date -u; uptime -s; cloud-init status; echo ---; vtysh -c 'show bgp summary' | grep 169.254; echo ---; ip -s link show ipsec0" --query "value[0].message" -o tsv; done
+
+##### vm-cne-hub
+Enable succeeded:
+[stdout]
+Sat Oct 10 18:11:11 UTC 2026
+2026-10-10 18:02:36
+status: done
+---
+BGP router identifier 169.254.100.1, local AS number 65010 vrf-id 0
+169.254.100.2   4      65020        12        13        0    0    0 00:06:58            1        1 onprem-gw
+---
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1400 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+          1651      24      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+          1356      18      1       1       1       0
+
+[stderr]
+
+##### vm-cne-onprem-gw
+Enable succeeded:
+[stdout]
+Sat Oct 10 18:11:46 UTC 2026
+2026-10-10 18:03:24
+status: done
+---
+BGP router identifier 169.254.100.2, local AS number 65020 vrf-id 0
+169.254.100.1   4      65010        14        13        0    0    0 00:07:33            1        1 hub
+---
+5: ipsec0@lo: <NOARP,UP,LOWER_UP> mtu 1400 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/none
+    RX:  bytes packets errors dropped  missed   mcast
+          1427      19      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+          1774      26      0       0       0       0
+
+[stderr]

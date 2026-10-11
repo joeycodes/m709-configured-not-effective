@@ -1,0 +1,241 @@
+### 2026-10-10
+### test: without the outbound rules of K3, traffic forwarded between on-premises and Azure leaves the forwarding gateway and is never delivered, in each direction at a different gateway; restoring the rules restores delivery
+### note: the two rules were deleted out of band with the author's account (Owner, ADR D8) at 18:15:27 UTC, as in F2. Between K4 and (d)-(e) the only change is their absence; (f)-(g) put them back through the pipeline and the flows recover. Attribution to the rules rests on that on-off-on comparison: the captures show where the packets stop, not what stopped them.
+### note: srv -> tier-1 (id 1421) passes gateway eth0 In -> ipsec0 Out and hub ipsec0 In -> eth0 Out, and tier-1 receives nothing: dropped after the hub's NIC, which has no outbound rule for source 10.0.0.0/16 (outside its VirtualNetwork tag). tier-1 -> srv (id 1414) passes hub eth0 In -> ipsec0 Out and gateway ipsec0 In -> eth0 Out, and srv receives nothing: dropped after the gateway's NIC, for which 10.102.0.4 is outside the tag. Each rule is therefore necessary for one direction.
+### note: no reply appears anywhere; every kernel on the path forwarded the request.
+### note: timestamps are per host; the VMs' clocks differ by tens of milliseconds (the gateway logs its receipt after the hub logs the same packet), so order is read within a host only.
+### note: ens1 and eth0 are the same NIC (accelerated networking), so each packet appears on both. All four capture units were active for the whole test and stopped cleanly; the "unit not loaded" seen in K4 did not recur.
+### note: (f) is also a drift check: plan finds exactly the two deleted rules and nothing else.
+
+### (a) outbound rules before the deletion
+### cmd: for n in nsg-hub-nva nsg-onprem-gw; do echo "##### $n"; az network nsg rule list -g $RG --nsg-name $n --query "[?direction=='Outbound']" -o table; done
+
+##### nsg-hub-nva
+Name                         Access    DestinationAddressPrefix    DestinationPortRange    Direction    Priority    Protocol    ProvisioningState    SourceAddressPrefix    SourcePortRange    ResourceGroup
+---------------------------  --------  --------------------------  ----------------------  -----------  ----------  ----------  -------------------  ---------------------  -----------------  ---------------
+AllowForwardedFromOnpremOut  Allow     10.100.0.0/14               *                       Outbound     100         *           Succeeded            10.0.0.0/16            *                  rg-cne-lab
+##### nsg-onprem-gw
+Name                        Access    DestinationAddressPrefix    DestinationPortRange    Direction    Priority    Protocol    ProvisioningState    SourceAddressPrefix    SourcePortRange    ResourceGroup
+--------------------------  --------  --------------------------  ----------------------  -----------  ----------  ----------  -------------------  ---------------------  -----------------  ---------------
+AllowForwardedFromAzureOut  Allow     10.0.0.0/16                 *                       Outbound     100         *           Succeeded            10.100.0.0/14          *                  rg-cne-lab
+
+### (b) deletion, out of band
+### cmd: date -u
+Sat Oct 10 18:15:27 UTC 2026
+### cmd: az network nsg rule delete -g $RG --nsg-name nsg-hub-nva -n AllowForwardedFromOnpremOut
+### cmd: az network nsg rule delete -g $RG --nsg-name nsg-onprem-gw -n AllowForwardedFromAzureOut
+### cmd: (rule list as in (a))
+
+##### nsg-hub-nva
+
+##### nsg-onprem-gw
+
+### (c) captures started on srv, gateway, hub and tier-1
+### cmd: for vm in vm-cne-onprem-srv vm-cne-onprem-gw vm-cne-hub vm-cne-tier1; do echo "##### $vm"; az vm run-command invoke -g $RG -n $vm --command-id RunShellScript --scripts "systemd-run --unit=cap2 tcpdump -U -ni any -w /tmp/cap2.pcap 'icmp and host 10.0.1.4'; sleep 1; systemctl status cap2 --no-pager | head -3" --query "value[0].message" -o tsv; done
+
+##### vm-cne-onprem-srv
+Enable succeeded:
+[stdout]
+● cap2.service - /usr/bin/tcpdump -U -ni any -w /tmp/cap2.pcap "icmp and host 10.0.1.4"
+     Loaded: loaded (/run/systemd/transient/cap2.service; transient)
+  Transient: yes
+
+[stderr]
+Running as unit: cap2.service; invocation ID: 46a88785af5c465e98cb49a85dc0313f
+
+##### vm-cne-onprem-gw
+Enable succeeded:
+[stdout]
+● cap2.service - /usr/bin/tcpdump -U -ni any -w /tmp/cap2.pcap "icmp and host 10.0.1.4"
+     Loaded: loaded (/run/systemd/transient/cap2.service; transient)
+  Transient: yes
+
+[stderr]
+Running as unit: cap2.service; invocation ID: 42fd2aedc4ee4054b9675f14b9d9c596
+
+##### vm-cne-hub
+Enable succeeded:
+[stdout]
+● cap2.service - /usr/bin/tcpdump -U -ni any -w /tmp/cap2.pcap "icmp and host 10.0.1.4"
+     Loaded: loaded (/run/systemd/transient/cap2.service; transient)
+  Transient: yes
+
+[stderr]
+Running as unit: cap2.service; invocation ID: 17f742cce1ce45f1b3f00987c84f4163
+
+##### vm-cne-tier1
+Enable succeeded:
+[stdout]
+● cap2.service - /usr/bin/tcpdump -U -ni any -w /tmp/cap2.pcap "icmp and host 10.0.1.4"
+     Loaded: loaded (/run/systemd/transient/cap2.service; transient)
+  Transient: yes
+
+[stderr]
+Running as unit: cap2.service; invocation ID: e60bf7681e12459d8285cc237843916c
+
+### (d) pings in both directions, rules absent
+### cmd: az vm run-command invoke -g $RG -n vm-cne-onprem-srv --command-id RunShellScript --scripts "ping -c3 -W2 10.102.0.4; echo exit=\$?" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 10.102.0.4 (10.102.0.4) 56(84) bytes of data.
+
+--- 10.102.0.4 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2054ms
+
+exit=1
+
+[stderr]
+
+### cmd: az vm run-command invoke -g $RG -n vm-cne-tier1 --command-id RunShellScript --scripts "ping -c3 -W2 10.0.1.4; echo exit=\$?" --query "value[0].message" -o tsv
+
+Enable succeeded:
+[stdout]
+PING 10.0.1.4 (10.0.1.4) 56(84) bytes of data.
+
+--- 10.0.1.4 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2030ms
+
+exit=1
+
+[stderr]
+
+### (e) captures read
+### cmd: for vm in vm-cne-onprem-srv vm-cne-onprem-gw vm-cne-hub vm-cne-tier1; do echo "##### $vm"; az vm run-command invoke -g $RG -n $vm --command-id RunShellScript --scripts "systemctl status cap2 --no-pager | grep -E 'Active:'; systemctl stop cap2; tcpdump -nr /tmp/cap2.pcap" --query "value[0].message" -o tsv; done
+
+##### vm-cne-onprem-srv
+Enable succeeded:
+[stdout]
+     Active: active (running) since Sat 2026-10-10 18:19:26 UTC; 5min ago
+18:23:11.147245 eth0  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 1, length 64
+18:23:11.147247 ens1  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 1, length 64
+18:23:12.177158 eth0  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 2, length 64
+18:23:12.177163 ens1  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 2, length 64
+18:23:13.201115 eth0  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 3, length 64
+18:23:13.201119 ens1  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 3, length 64
+
+[stderr]
+reading from file /tmp/cap2.pcap, link-type LINUX_SLL2 (Linux cooked v2), snapshot length 262144
+Warning: interface names might be incorrect
+
+##### vm-cne-onprem-gw
+Enable succeeded:
+[stdout]
+     Active: active (running) since Sat 2026-10-10 18:19:56 UTC; 5min ago
+18:23:11.175332 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 1, length 64
+18:23:11.175332 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 1, length 64
+18:23:11.175372 ipsec0 Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 1, length 64
+18:23:12.205387 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 2, length 64
+18:23:12.205387 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 2, length 64
+18:23:12.205426 ipsec0 Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 2, length 64
+18:23:13.232227 ens1  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 3, length 64
+18:23:13.232227 eth0  In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 3, length 64
+18:23:13.232268 ipsec0 Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 3, length 64
+18:23:45.682616 ipsec0 In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 1, length 64
+18:23:45.682644 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 1, length 64
+18:23:45.682647 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 1, length 64
+18:23:46.690991 ipsec0 In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 2, length 64
+18:23:46.691014 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 2, length 64
+18:23:46.691017 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 2, length 64
+18:23:47.713463 ipsec0 In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 3, length 64
+18:23:47.713486 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 3, length 64
+18:23:47.713488 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 3, length 64
+
+[stderr]
+reading from file /tmp/cap2.pcap, link-type LINUX_SLL2 (Linux cooked v2), snapshot length 262144
+Warning: interface names might be incorrect
+
+##### vm-cne-hub
+Enable succeeded:
+[stdout]
+     Active: active (running) since Sat 2026-10-10 18:20:33 UTC; 5min ago
+18:23:11.148527 ipsec0 In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 1, length 64
+18:23:11.148554 eth0  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 1, length 64
+18:23:11.148557 ens1  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 1, length 64
+18:23:12.178549 ipsec0 In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 2, length 64
+18:23:12.178565 eth0  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 2, length 64
+18:23:12.178566 ens1  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 2, length 64
+18:23:13.205389 ipsec0 In  IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 3, length 64
+18:23:13.205410 eth0  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 3, length 64
+18:23:13.205413 ens1  Out IP 10.0.1.4 > 10.102.0.4: ICMP echo request, id 1421, seq 3, length 64
+18:23:45.654995 ens1  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 1, length 64
+18:23:45.654995 eth0  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 1, length 64
+18:23:45.655029 ipsec0 Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 1, length 64
+18:23:46.663176 ens1  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 2, length 64
+18:23:46.663176 eth0  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 2, length 64
+18:23:46.663215 ipsec0 Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 2, length 64
+18:23:47.685702 ens1  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 3, length 64
+18:23:47.685702 eth0  In  IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 3, length 64
+18:23:47.685739 ipsec0 Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 3, length 64
+
+[stderr]
+reading from file /tmp/cap2.pcap, link-type LINUX_SLL2 (Linux cooked v2), snapshot length 262144
+Warning: interface names might be incorrect
+
+##### vm-cne-tier1
+Enable succeeded:
+[stdout]
+     Active: active (running) since Sat 2026-10-10 18:21:06 UTC; 5min ago
+18:23:45.654623 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 1, length 64
+18:23:45.654625 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 1, length 64
+18:23:46.661082 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 2, length 64
+18:23:46.661088 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 2, length 64
+18:23:47.685010 eth0  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 3, length 64
+18:23:47.685014 ens1  Out IP 10.102.0.4 > 10.0.1.4: ICMP echo request, id 1414, seq 3, length 64
+
+[stderr]
+reading from file /tmp/cap2.pcap, link-type LINUX_SLL2 (Linux cooked v2), snapshot length 262144
+Warning: interface names might be incorrect
+
+### (f) restored through the pipeline (run 38075974915)
+### cmd: gh workflow run apply.yml --ref main; gh run watch $RUN --exit-status
+### cmd: gh run view $RUN --log | sed -E 's/(\x1b|\^\[)\[[0-9;]*m//g' | grep -E "will be created|Plan:|Apply complete"
+
+apply	Apply	2026-10-10T18:29:53.1840272Z   # azurerm_network_security_rule.gw_allow_azure_out will be created
+apply	Apply	2026-10-10T18:29:53.1849387Z   # azurerm_network_security_rule.hub_allow_onprem_out will be created
+apply	Apply	2026-10-10T18:29:53.1855640Z Plan: 2 to add, 0 to change, 0 to destroy.
+apply	Apply	2026-10-10T18:30:04.9483776Z Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
+
+### (g) after restoring: rules present, both directions deliver
+### cmd: (rule list as in (a))
+
+##### nsg-hub-nva
+Name                         Access    DestinationAddressPrefix    DestinationPortRange    Direction    Priority    Protocol    ProvisioningState    SourceAddressPrefix    SourcePortRange    ResourceGroup
+---------------------------  --------  --------------------------  ----------------------  -----------  ----------  ----------  -------------------  ---------------------  -----------------  ---------------
+AllowForwardedFromOnpremOut  Allow     10.100.0.0/14               *                       Outbound     100         *           Succeeded            10.0.0.0/16            *                  rg-cne-lab
+##### nsg-onprem-gw
+Name                        Access    DestinationAddressPrefix    DestinationPortRange    Direction    Priority    Protocol    ProvisioningState    SourceAddressPrefix    SourcePortRange    ResourceGroup
+--------------------------  --------  --------------------------  ----------------------  -----------  ----------  ----------  -------------------  ---------------------  -----------------  ---------------
+AllowForwardedFromAzureOut  Allow     10.0.0.0/16                 *                       Outbound     100         *           Succeeded            10.100.0.0/14          *                  rg-cne-lab
+
+### cmd: (srv -> tier-1 ping as in (d))
+
+Enable succeeded:
+[stdout]
+PING 10.102.0.4 (10.102.0.4) 56(84) bytes of data.
+64 bytes from 10.102.0.4: icmp_seq=1 ttl=62 time=11.1 ms
+64 bytes from 10.102.0.4: icmp_seq=2 ttl=62 time=13.8 ms
+64 bytes from 10.102.0.4: icmp_seq=3 ttl=62 time=6.53 ms
+
+--- 10.102.0.4 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 6.529/10.479/13.779/2.995 ms
+exit=0
+
+[stderr]
+
+### cmd: (tier-1 -> srv ping as in (d))
+
+Enable succeeded:
+[stdout]
+PING 10.0.1.4 (10.0.1.4) 56(84) bytes of data.
+64 bytes from 10.0.1.4: icmp_seq=1 ttl=62 time=7.03 ms
+64 bytes from 10.0.1.4: icmp_seq=2 ttl=62 time=11.9 ms
+64 bytes from 10.0.1.4: icmp_seq=3 ttl=62 time=16.8 ms
+
+--- 10.0.1.4 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 7.033/11.910/16.806/3.989 ms
+exit=0
+
+[stderr]

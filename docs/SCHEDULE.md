@@ -39,15 +39,15 @@ Goal: an environment that provisions from empty and is destroyed and rebuilt in 
 ### Week 3 (Sep 14–20) — Spokes and routing enforcement
 - `modules/tiers`: Tier-0 (10.101/16, restricted), Tier-1 (10.102/16, application), Tier-2 (10.103/16, low-trust). NSG/ASG baseline. Hub peering only — no spoke-to-spoke peering.
 - UDRs sending `0.0.0.0/0` and inter-spoke traffic to the inspection next hop.
-- Self-hosted inspection host (nftables/Suricata) stood up as the routine next hop; managed Azure Firewall stays behind the `enable_firewall` flag.
+- Self-hosted inspection host (nftables) stood up as the routine next hop; Suricata moves to week 7 with the telemetry layer (ADR D19); managed Azure Firewall stays behind the `enable_firewall` flag.
 - One small test VM per tier, deallocated when idle.
 - **Exit:** effective-routes output and a traceroute both show Tier-1 → internet traversing the inspection host; Tier-2 → Tier-0 is denied.
 
 ### Week 4 (Sep 21–30) — On-premises, eBGP, and M1 close
-- FRR + StrongSwan edge VM as the simulated on-prem site (10.0.0.0/24); IPsec to the Azure-side endpoint; eBGP session with the on-prem prefix learned dynamically in both directions.
-- `nightly-destroy.yml` written and proven **before** the first paid window.
-- **Validation window #1 (time-boxed, ~48 h):** raise the managed Azure VPN Gateway, confirm the design holds on the native product, capture evidence, destroy. Log the actual cost.
-- **M1 GATE:** on-prem → Tier-1 reachable over the tunnel; BGP-learned routes visible in effective routes; the entire environment destroys and rebuilds from `main` in a single pipeline run, with the rebuild time recorded.
+- FRR + strongSwan edge gateway as the simulated on-prem site (10.0.0.0/16: gateway and server subnets); IPsec to the Azure-side endpoint; eBGP session with each side's prefix learned dynamically in both directions.
+- `nightly-destroy.yml` written and proven before any paid resource is raised.
+- Validation window #1 (managed VPN Gateway) is dropped: it tests a connectivity product, not a security control (ADR D19).
+- **M1 GATE:** on-prem → Tier-1 reachable over the tunnel; BGP-learned routes visible in FRR and the kernel on both gateways (restated from Azure effective routes, which a self-hosted endpoint cannot populate; ADR D19); the entire environment destroys and rebuilds from `main` in a single pipeline run, with the rebuild time recorded.
 
 ---
 
@@ -67,7 +67,7 @@ Goal: the pipeline becomes the enforcement point, and the telemetry layer can pr
 - **Exit:** the assertion catches a deliberately broken UDR — a second recorded negative test.
 
 ### Week 7 (Oct 15–21) — Telemetry layer
-- Flow logs → workspace, firewall traffic and DNS-proxy logs, DNS query logging, Activity Log. Sentinel onboarded.
+- Suricata on the NVA (IDS mode); flow logs → workspace, firewall traffic and DNS-proxy logs, DNS query logging, Activity Log. Sentinel onboarded.
 - Verify each source with a query per source rather than assuming enablement equals arrival.
 - **Verify before building on it:** NSG flow logs are on a retirement path in favour of VNet flow logs, and `AzureNetworkAnalytics_CL` is the legacy Traffic Analytics schema. Confirm which schema your subscription actually writes and pin the detections to that — this is cheap now and expensive in November.
 - **Exit:** a one-page telemetry inventory — source → table → retention → what it can prove.
@@ -98,7 +98,7 @@ Goal: the control-effectiveness matrix, populated with evidence.
 ### Week 11 (Nov 16–23) — Extended scenarios
 - **#3** routing bypass, **#7** attack from the on-prem side of the tunnel, **#2** overly permissive service tag, **#6** SSRF → instance metadata → role theft.
 - Prioritise **#6** if time is short: it is a control-plane attack that network segmentation cannot stop, which is the sharpest demonstration of the thesis.
-- **Validation window #2 (time-boxed):** raise the managed Azure Firewall and re-run the key scenarios so the results also hold on the native product.
+- Validation window #2 (managed Azure Firewall) is optional: item 1 of the list under *Scope discipline*, taken only if M3 is ahead at the Nov 23 decision point.
 
 ### Week 12 (Nov 24–30) — Close the gaps and M3 close
 - For every failure that went undetected: author the detection, commit it, re-run the scenario, confirm it fires, fill the post-remediation columns.
@@ -139,8 +139,15 @@ Goal: the control-effectiveness matrix, populated with evidence.
 |---|---|---|
 | Oct 31 | M2 gate not met | Drop scenarios #2, #5, #7, #8 from the plan now; do not carry them into November |
 | Nov 15 | The two mandatory rows are not complete | Stop adding scenarios; spend the rest of November on detection engineering and the matrix |
-| Nov 23 | M3 complete and ahead | Only then consider the optional AWS or AKS extension — and prefer deepening the evidence instead |
+| Nov 23 | M3 complete and ahead | Only then take items from the optional list below, in its order — and prefer deepening the evidence over the AWS or AKS extension |
 | Dec 18 | No full draft with the supervisor | Invoke the extension to 1 Mar 2027 deliberately, rather than discovering it in late December |
+
+**Optional, if time allows** — none is part of a gate or a success criterion; whatever is not done by Dec 8 is dropped and named in the report's limitations.
+
+1. Validation window #2: the managed Azure Firewall, re-running the key scenarios on it.
+2. Tunnel loss: stop the IPsec tunnel and confirm that traffic for the other site is dropped rather than leaving by another path (predicted in ADR D19, untested). Most convincing once VNet flow logs exist.
+3. Two tunnels, active/standby, with BGP failover measured (see the note at the end of this file).
+4. MSS clamping on `ipsec0`: a TCP transfer across the tunnel with and without it.
 
 ---
 
@@ -162,4 +169,4 @@ Goal: the control-effectiveness matrix, populated with evidence.
 
 Dropping AWS removes the three-domain triangle, and with it the only routing-resilience story in the design: three tunnels live at once, a direct path and a via-on-prem backup, with BGP failover as the object of test. That was genuine internetworking depth in a project whose centre of gravity is otherwise security, and a MINT examiner is likely to look for it.
 
-It can be recovered inside one cloud, cheaply: run **two IPsec tunnels between the on-premises edge and the Azure hub** (active/standby, distinguished by AS-path prepend or local preference), then test failover by tearing the primary down and measuring convergence. It costs one extra tunnel on the same free-tier VMs, preserves the eBGP path-selection demonstration, and adds an attack scenario worth having — does the security posture hold on the backup path, or does failover route around the firewall? Consider slotting it into Week 4 alongside the eBGP work, and as an extra row in the November matrix.
+It can be recovered inside one cloud, cheaply: run **two IPsec tunnels between the on-premises edge and the Azure hub** (active/standby, distinguished by AS-path prepend or local preference), then test failover by tearing the primary down and measuring convergence. It costs one extra tunnel on the same free-tier VMs, preserves the eBGP path-selection demonstration, and adds an attack scenario worth having — does the security posture hold on the backup path, or does failover route around the firewall? Not scheduled; it is item 3 of the optional list under *Scope discipline*.

@@ -21,7 +21,7 @@ Non-goal: a novel detection algorithm or a generalizable study. This is an MSc-l
 
 Two domains joined over an IPsec tunnel running eBGP:
 
-- **On-premises (simulated):** a single edge router (FRRouting + StrongSwan on a free-tier VM) advertising the on-prem prefix via BGP, standing in for a customer edge device.
+- **On-premises (simulated):** an edge gateway (FRRouting + strongSwan) advertising the on-prem prefix via BGP, standing in for a customer edge device, and a server behind it whose traffic the gateway forwards into the tunnel.
 - **Azure:** a hub-and-spoke of four virtual networks. The hub carries the tunnel endpoint and the firewall; three spokes are the trust tiers. Routing forces all inter-spoke and outbound traffic up through the hub firewall, which is the only path to the internet.
 
 A full topology diagram lives in `docs/diagrams/` (exported from the source `.drawio`). Textual summary:
@@ -37,7 +37,7 @@ A full topology diagram lives in `docs/diagrams/` (exported from the source `.dr
              [ simulated on-premises ]
 ```
 
-**Connectivity choice.** The tunnel is terminated primarily by self-hosted FRR + StrongSwan on free-tier micro VMs (cheap, rebuilds in minutes, full BGP timer control). The managed Azure VPN Gateway is exercised only in short, time-boxed validation windows to confirm the design works on the native product, then destroyed. Same for the managed Azure Firewall: a self-hosted inspection host (nftables/Suricata) is used for routine testing, with the managed firewall raised only in validation windows.
+**Connectivity choice.** The tunnel is terminated by self-hosted FRR + strongSwan VMs at both ends (cheap, rebuilds in minutes, full BGP timer control). The managed Azure VPN Gateway is not used: the validation window planned for it was dropped, because it would test a connectivity product rather than a security control (ADR D19). Inspection is likewise self-hosted (nftables now, Suricata from M2), with the managed Azure Firewall raised only in a time-boxed validation window if one is run.
 
 ---
 
@@ -49,20 +49,21 @@ Non-overlapping, hierarchical, with room reserved for a future second cloud.
 
 | Domain | Supernet | Segment | Prefix | Purpose |
 |---|---|---|---|---|
-| On-premises | 10.0.0.0/16 | core | 10.0.0.0/24 | legacy core, edge router |
+| On-premises | 10.0.0.0/16 | gateway | 10.0.0.0/24 | edge gateway: IPsec, eBGP (`10.0.0.4`) |
+| | | server | 10.0.1.0/24 | workload behind the gateway |
 | Azure | 10.100.0.0/14 | hub VNet | 10.100.0.0/16 | firewall, tunnel endpoint, DNS |
 | | | Tier-0 (restricted) | 10.101.0.0/16 | sensitive assets, default-deny egress |
 | | | Tier-1 (application) | 10.102.0.0/16 | business workloads |
 | | | Tier-2 (low-trust) | 10.103.0.0/16 | dev and test |
 | Reserved | 10.200.0.0/14 | (future AWS) | — | cross-provider extension only |
 
-Within each VNet, subnets are carved as /24s (for example the hub uses 10.100.0.0/24 for the firewall subnet, 10.100.1.0/24 for the gateway/router subnet).
+Within each VNet, subnets are carved as /24s. The hub reserves 10.100.0.0/24 (`AzureFirewallSubnet`) and 10.100.1.0/24 (`GatewaySubnet`) for managed services, left empty, and runs the NVA in 10.100.2.0/24 (`10.100.2.4`); each tier's workloads sit in its first /24. The tunnel uses 169.254.100.0/30 (hub `.1`, on-premises `.2`), outside the plan. The source of truth is the `locals` map in `infra/envs/lab/network.tf`; this table is maintained from it by hand.
 
 ### 3.2 Routing and enforcement
 
 - Spokes peer to the hub; there is no direct spoke-to-spoke peering.
 - User-defined routes (UDRs) on each spoke send `0.0.0.0/0` and inter-spoke traffic to the firewall's private IP as next hop.
-- eBGP runs between the on-prem edge router and the Azure tunnel endpoint; the on-prem prefix is learned dynamically.
+- eBGP runs between the on-prem edge gateway and the Azure tunnel endpoint (AS 65020 and 65010); each side learns the other's aggregate dynamically. The learned routes live in FRR and the kernel of the two gateways, not in Azure effective routes; the tiers reach on-premises through their default route to the NVA (ADR D19).
 - The restricted tier (Tier-0) denies egress by default; any outbound destination is explicitly allow-listed.
 
 The security posture therefore depends on three network-layer controls: **segmentation** (NSG/ASG), **routing-enforced inspection** (UDR forcing traffic through the firewall), and **egress control** (default-deny plus allow-list). These three are the objects under test.
@@ -85,31 +86,29 @@ configured-not-effective/
     TECHNICAL-DESIGN.md
     adr/                     architecture decision records
     diagrams/                topology (exported from .drawio)
+    evidence/                command output behind each claim, per milestone
   infra/
-    modules/
-      network/               vnet, subnets, peering, UDR
-      connectivity/          FRR + StrongSwan VM (or managed VPN GW)
-      firewall/              Azure Firewall, feature-flagged (on-demand)
-      tiers/                 tier-0/1/2 spokes, NSG/ASG rules
-      logging/               Log Analytics, flow logs, diagnostic settings
     envs/
-      lab/                   the single lab environment
-        main.tf  variables.tf  backend.tf
-    policy/                  Rego policies, Checkov/tfsec config
-    detections/             KQL analytics rules, reachability assertions
+      lab/                   ephemeral: network, NVA, tiers, on-premises; destroyed nightly
+      observability/         persistent: Log Analytics, Activity Log export, evidence storage
+    policy/                  (M2) Rego policies
+    detections/              (M2) KQL analytics rules, reachability assertions
+  .checkov.yml
   .github/workflows/
-    plan.yml  apply.yml  nightly-destroy.yml
-  attack/
-    scenarios/              scenario definitions and runbooks
-    tooling/                CALDERA / Atomic / stratus configs
-  results/
+    plan.yml  apply.yml  apply-observability.yml  policy.yml  nightly-destroy.yml
+  attack/                    (M3)
+    scenarios/               scenario definitions and runbooks
+    tooling/                 CALDERA / Atomic / stratus configs
+  results/                   (M3)
     control-effectiveness-matrix.md
 ```
+
+The code is split by environment, not by component: each directory under `envs/` is a root module with its own state, and the split follows lifecycle (persistent against ephemeral). There are no child modules; why is recorded in ADR D19.
 
 ### 4.2 State, identity, and bootstrap
 
 - **Remote state:** an Azure Storage backend, part of the persistent base (never destroyed). State locking via blob lease.
-- **Authentication:** GitHub Actions authenticates to Azure via OIDC federation. No long-lived credentials in CI. The CI identity is the only principal granted deploy permissions; human accounts are read/plan only, so a local `terraform apply` cannot bypass the pipeline.
+- **Authentication:** GitHub Actions authenticates to Azure via OIDC federation. No long-lived credentials in CI. Infrastructure changes go through the pipeline by discipline, not by control: the author holds `Owner` on the subscription (ADR D8, limitation L2), so a local `apply` or an out-of-band change is possible. Such changes are caught as drift by the next `plan` (evidence F2–F4, K2).
 - **Bootstrap (one-time, manual):** create the state backend and the OIDC trust. Everything else flows through CI. Recorded in an ADR.
 
 ---
@@ -132,8 +131,8 @@ CI is used from day one; it is the enforcement point for the "prevent" stage, no
 2. manual approval (GitHub environment protection)
 3. `terraform apply`
 
-**`nightly-destroy.yml` (cron, 23:00):**
-- Destroy the paid layer only, via a feature flag: `terraform apply -var="enable_firewall=false"` (and the managed gateway if it was raised). The free-tier core and the persistent base remain. This closes the largest cost risk (a forgotten paid resource) without relying on memory.
+**`nightly-destroy.yml` (scheduled, and on demand):**
+- `terraform destroy` on the whole `lab` state, daily at 07:22 UTC. The persistent base (state backend, observability) is in other states and remains. This closes the largest cost risk (a forgotten paid resource) without relying on memory.
 
 Policy-as-code lives in `infra/policy/`. Example guardrails: deny any subnet without an associated NSG; deny a public IP on a Tier-0 resource; require a route table whose default next hop is the firewall on every spoke; require standard tags.
 

@@ -35,8 +35,11 @@ shown, is under *Open gaps*.
 | J2 | The IPsec tunnel establishes on the NAT-T port at both ends |
 | J3 | Data crosses the tunnel in both directions, and the two ends account for it identically |
 | K1 | eBGP is established over the tunnel; each gateway learns only the other's aggregate and installs it in the kernel |
+| K2 | Without the outbound rules, forwarded traffic leaves the forwarding gateway and is never delivered, each direction at a different gateway; restoring the rules through the pipeline restores delivery |
 | K3 | Forwarded traffic between the two aggregates is allowed outbound at both gateways' NSGs, and nothing wider |
 | K4 | The on-premises server and tier-1 reach each other through the tunnel in both directions, seen at every hop |
+| K5 | `ipsec0` transmit errors do not grow: at most one, at start-up |
+| L1 | The whole lab builds from main in one run, from no resource group, and is usable in about 4 min 15 s |
 
 The evidence for each ID is in this directory, in the file or files whose name
 begins with that ID, for example `G5-inbound-from-internet.txt`.
@@ -72,6 +75,12 @@ re-run uses tier-1 → tier-0.
   the run was refuted. (E1)
 - **Drift detection covers that blind spot,** because `plan` compares the
   configuration with what the platform reports. (F3)
+- **The `VirtualNetwork` tag is per NIC, and it decides forwarded traffic.**
+  Traffic forwarded from on-premises left the hub and was dropped silently by
+  the hub NIC's default outbound rules, because its source is outside that
+  NIC's tag; the reverse direction was dropped the same way at the on-premises
+  gateway. Every host-side check passed. Tier-2 → tier-0 had crossed the same
+  NIC only because its source is inside the tag. (K2, K3, K4)
 - **A failed connection is evidence of a control only if its failure mode
   matches that control and the test path is known.** A VPN client on the test
   workstation answered on the target's behalf and produced two other failure
@@ -90,14 +99,10 @@ re-run uses tier-1 → tier-0.
   the NVA drops those packets first.
 - **G1 covers tier-2 only.** It does not show that run-command works on a VM
   with no egress.
-- **`ipsec0` transmit errors are reduced, not shown to be gone.** With
-  link-local addressing off, `ipsec0` has no IPv6 address and the hub reads 0
-  errors; the gateway reads 1 after about 90 minutes, against 7-8 and growing
-  before. Whether that one recurs is not yet read. (J3, K1)
 - **BGP routes stop at the gateways.** They are in FRR and the kernel on both
   gateways, not in Azure effective routes; the tiers reach on-premises through
-  their default route to the NVA. The schedule's M1 gate asks for effective
-  routes. (K1, G2)
+  their default route to the NVA. The M1 gate, which asked for effective
+  routes, is restated in ADR D19. (K1, G2)
 - **The hub's port-4500 rule reads zero once the tunnel is up.** Its traffic
   matches `ct state established` first, consistent with the tunnel having been
   negotiated before the ruleset was loaded at boot; unconfirmed. (J2 c)
