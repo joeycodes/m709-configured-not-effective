@@ -24,7 +24,7 @@ resource "azurerm_route_table" "spoke" {
   name                = "rt-cne-${each.key}"
   location            = azurerm_resource_group.lab.location
   resource_group_name = azurerm_resource_group.lab.name
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = each.key })
 
   route {
     name                   = "to-other-tiers-via-nva"
@@ -59,7 +59,7 @@ resource "azurerm_route_table" "onprem-srv" {
   name                = "rt-cne-onprem-srv"
   location            = azurerm_resource_group.lab.location
   resource_group_name = azurerm_resource_group.lab.name
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = "onprem" })
 
   route {
     name                   = "to-tiers-via-gw"
