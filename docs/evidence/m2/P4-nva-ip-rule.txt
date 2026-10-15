@@ -1,0 +1,49 @@
+### 2026-10-15
+### test: the NVA address rule (infra/policy/nva_ip.rego) rejects a hub NIC that does not hold lab.nva_ip (10.100.2.4) on a statically allocated ip_configuration, including a dynamically allocated one whose address is unknown at plan time
+### note: the rule selects azurerm_network_interface.hub (not being destroyed) and requires that some ip_configuration carries private_ip_address == lab.nva_ip and private_ip_address_allocation == "Static". It is written as "cannot show compliance -> deny", so an address absent from `after` (dynamic, or computed) is rejected rather than skipped.
+### note: the hub NIC's address is a literal in its own configuration, so unlike the spoke routes' next hops it is known on a fresh build. That is why the next-hop rules (P3) can defer the address to this rule: a next hop taken from the hub NIC is unknown at plan time, but the NIC it is taken from is pinned here to the standard value.
+### note: the standard value lives in infra/policy/lab.rego, not in the Terraform configuration. In (c) the NIC's address changes and the spoke routes that reference it would follow it to 10.100.2.5; nothing in the spoke-route checks changes, since their next hops are still unknown references to the hub NIC. Only this rule, comparing against a value held outside the configuration, sees the change.
+### note: same plan as P1 (d) to P3, unmodified in (b); (c) and (d) each change the hub NIC's ip_configuration only, as the diffs show. Run locally by the author with conftest 0.71.1; the temporary directory path is shown as $TMPDIR. conftest counts each deny rule as one test: eight rules in four packages (zone_tag 2, pip_tier0 2, spoke_routes 3, nva_ip 1).
+
+### (a) unit tests, all rules
+### cmd: conftest verify -p infra/policy --show-builtin-errors
+
+41 tests, 41 passed, 0 warnings, 0 failures, 0 exceptions, 0 skipped
+
+### (b) the lab's plan, unmodified
+### cmd: conftest test "$TMPDIR/plan.json" -p infra/policy --all-namespaces
+
+8 tests, 8 passed, 0 warnings, 0 failures, 0 exceptions
+
+### (c) the hub NIC's address changed to 10.100.2.5
+### cmd: jq '(.resource_changes[] | select(.address == "azurerm_network_interface.hub") | .change.after.ip_configuration[0].private_ip_address) = "10.100.2.5"' "$TMPDIR/plan.json" > "$TMPDIR/neg-nva-a.json"
+### cmd: diff <(jq -S . "$TMPDIR/plan.json") <(jq -S . "$TMPDIR/neg-nva-a.json")
+
+5415c5415
+<               "private_ip_address": "10.100.2.4",
+---
+>               "private_ip_address": "10.100.2.5",
+
+### cmd: conftest test "$TMPDIR/neg-nva-a.json" -p infra/policy --all-namespaces
+
+FAIL - $TMPDIR/neg-nva-a.json - terraform.nva_ip - azurerm_network_interface.hub: must hold 10.100.2.4, statically allocated.
+
+8 tests, 7 passed, 0 warnings, 1 failure, 0 exceptions
+
+### (d) the hub NIC switched to dynamic allocation, its address unknown at plan time
+### cmd: jq '(.resource_changes[] | select(.address == "azurerm_network_interface.hub") | .change) |= (.after.ip_configuration[0] |= (.private_ip_address_allocation = "Dynamic" | del(.private_ip_address)) | .after_unknown.ip_configuration[0].private_ip_address = true)' "$TMPDIR/plan.json" > "$TMPDIR/neg-nva-b.json"
+### cmd: diff <(jq -S . "$TMPDIR/plan.json") <(jq -S . "$TMPDIR/neg-nva-b.json")
+
+5415,5416c5415
+<               "private_ip_address": "10.100.2.4",
+<               "private_ip_address_allocation": "Static",
+---
+>               "private_ip_address_allocation": "Dynamic",
+5447a5447
+>               "private_ip_address": true,
+
+### cmd: conftest test "$TMPDIR/neg-nva-b.json" -p infra/policy --all-namespaces
+
+FAIL - $TMPDIR/neg-nva-b.json - terraform.nva_ip - azurerm_network_interface.hub: must hold 10.100.2.4, statically allocated.
+
+8 tests, 7 passed, 0 warnings, 1 failure, 0 exceptions
