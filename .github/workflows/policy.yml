@@ -1,8 +1,10 @@
 # Policy gate. Runs on every pull request that touches infrastructure.
 #
-# This job needs no Azure credentials: Checkov reads the .tf source and
-# never contacts the cloud. That makes it fast, and it means a policy
-# violation is caught before anything authenticates anywhere.
+# Neither job needs Azure credentials. Checkov reads the .tf source; the
+# conftest job runs the Rego rules' own unit tests against the mock inputs
+# in infra/policy/*_test.rego. Both are fast, and a violation -- or a rule
+# that has stopped firing -- is caught before anything authenticates
+# anywhere. The rules themselves are applied to the real plan in plan.yml.
 #
 # IMPORTANT: a red check here blocks nothing on its own. Branch protection
 # on main is what turns this from a report into a gate -- see
@@ -45,4 +47,47 @@ jobs:
             echo "Checkov $(checkov --version 2>/dev/null || echo '(not installed)')"
             echo ''
             echo 'Full findings are in the step log above.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  conftest:
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        shell: bash
+
+    # Pinned version and its checksum, from the release's checksums.txt.
+    env:
+      CONFTEST_VERSION: 0.71.1
+      CONFTEST_SHA256: c3f6b2a753bd56e377a1e51a95ae3e057f926f2e9139f7d5b5dfbbaf810f7985
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install conftest
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          cd "$RUNNER_TEMP"
+          curl -sSfL -O "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          sha256sum -c <<< "${CONFTEST_SHA256}  conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          tar -xzf "conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" -C $RUNNER_TEMP/bin conftest
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/conftest" --version
+
+      - name: Unit tests
+        run: |
+          conftest verify --no-color --policy infra/policy --show-builtin-errors \
+            | tee "$RUNNER_TEMP/verify.txt"
+
+      - name: Publish result to job summary
+        if: always()
+        run: |
+          {
+            echo '## Policy unit tests'
+            echo ''
+            echo '```'
+            conftest --version 2>/dev/null || echo '(not installed)'
+            echo ''
+            cat "$RUNNER_TEMP/verify.txt" 2>/dev/null || echo '(no test output)'
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
