@@ -1,0 +1,30 @@
+### 2026-10-15
+### test: the Rego rules run in CI on a pull request: their unit tests in the Policy workflow (job conftest) and the rules themselves against the pull request's real plan in the Terraform plan workflow (job plan)
+### note: pull request #32 (feature/policy-rules -> main), head commit 360e1e4b2ec10bb34ab9937cd7d044d661a72b26. Workflow runs 38815120442 (Policy) and 38815120432 (Terraform plan), both on the pull_request event. The pull request was not merged by this test.
+### note: a green check alone shows only that no step exited non-zero; it does not show that any rule ran. A policy path pointing at the wrong directory, or a missing --all-namespaces, can also end green. This record therefore takes the counts from the run logs: conftest's own result lines, and the checksum and version lines of the install step.
+### note: conftest 0.71.1 is downloaded from the project's GitHub release and checked against the SHA-256 in that release's checksums.txt, pinned in the workflow (c3f6b2a7...7985). The same version runs locally (P1 to P5).
+### note: in the plan job the JSON plan is written to the runner's temp directory, outside the checkout, and is not uploaded; it is removed with the runner when the job ends. The lab was not deployed, so this is a fresh-build plan, the same situation as the local plan used in P1 to P4.
+### note: conftest counts each deny rule as one test: eight rules in four packages (zone_tag 2, pip_tier0 2, spoke_routes 3, nva_ip 1). The 41 unit tests match P4 (a). The plan-observability job runs no conftest step and prints no result line, as intended: the zone rules describe network zones and do not apply to the observability resources.
+### note: logs fetched with the GitHub CLI after both runs had completed. ANSI colour codes in the echoed command line are removed; nothing else is changed.
+
+### (a) run list for the branch
+### cmd: gh run list --branch feature/policy-rules --limit 4
+
+STATUS  TITLE                 WORKFLOW        BRANCH                EVENT         ID           ELAPSED  AGE
+✓       feature/policy rules  Terraform plan  feature/policy-rules  pull_request  38815120432  39s      about 4 minutes ago
+✓       feature/policy rules  Policy          feature/policy-rules  pull_request  38815120442  43s      about 4 minutes ago
+
+### (b) Policy workflow, job conftest: install and unit tests
+### cmd: gh run view 38815120442 --log | grep -E "tests,|sha256|: OK|Conftest:"
+
+conftest	Install conftest	2026-10-15T22:09:21.5455424Z sha256sum -c <<< "${CONFTEST_SHA256}  conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+conftest	Install conftest	2026-10-15T22:09:22.0462395Z conftest_0.71.1_Linux_x86_64.tar.gz: OK
+conftest	Install conftest	2026-10-15T22:09:22.4398488Z Conftest: 0.71.1
+conftest	Unit tests	2026-10-15T22:09:22.4920411Z 41 tests, 41 passed, 0 warnings, 0 failures, 0 exceptions, 0 skipped
+
+### (c) Terraform plan workflow, job plan: install and the rules against the plan
+### cmd: gh run view 38815120432 --log | grep -E "tests,|: OK|Conftest:"
+
+plan	Install conftest	2026-10-15T22:09:45.6654630Z conftest_0.71.1_Linux_x86_64.tar.gz: OK
+plan	Install conftest	2026-10-15T22:09:46.0155844Z Conftest: 0.71.1
+plan	Policy test against the plan	2026-10-15T22:09:46.5923000Z 8 tests, 8 passed, 0 warnings, 0 failures, 0 exceptions
