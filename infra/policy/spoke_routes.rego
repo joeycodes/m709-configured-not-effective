@@ -28,7 +28,7 @@ next_hops_from_hub_nic(rc) if {
 spoke_route_table(rc) if {
 	rc.change.after != null
 	rc.type == "azurerm_route_table"
-	rc.change.after.tags.zone in checked_zones
+	rc.change.after.tag.zone in checked_zones
 }
 
 spoke_route_next_hop(rc) if {
