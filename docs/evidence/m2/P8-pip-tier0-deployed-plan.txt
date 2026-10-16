@@ -1,0 +1,75 @@
+### 2026-10-16
+### test: the four Rego rules against a plan taken while the lab is deployed, rather than on a fresh build
+### note: P1 to P7, and every CI run until now, evaluated fresh-build plans: the lab destroyed, every resource planned for create, many values unknown. Once #32 merged and the lab was applied from main, a plan of the unchanged configuration has a different shape: every resource is a no-op, before and after are both populated, and after_unknown is empty. Pull requests opened while the lab is up are planned in this shape. The rules had never been run against it.
+### note: the plan was produced locally by the author against the deployed lab (state from main at 531a4d0, #32), with no configuration change. It carries prior state, including the IPsec pre-shared key in plain text, so it was kept in $TMPDIR, never committed, and deleted after this record. The temporary directory path is shown as $TMPDIR. conftest 0.71.1.
+### note: the fix is on branch fix/pip-tier0-deployed-plan, commit d2d20ab.
+
+### (a) the deployed-state plan against the rules as merged in #32
+### cmd: terraform plan -out="$TMPDIR/tfplan" && terraform show -json "$TMPDIR/tfplan" > "$TMPDIR/plan-deployed.json"   (in infra/envs/lab)
+### cmd: conftest test "$TMPDIR/plan-deployed.json" -p infra/policy --all-namespaces
+
+FAIL - $TMPDIR/plan-deployed.json - terraform.pip_tier0 - Tier 0 NIC 'azurerm_network_interface.spoke["tier0"]' must not be associated with a public IP address.
+
+8 tests, 7 passed, 0 warnings, 1 failure, 0 exceptions
+
+### (b) the tier-0 NIC as deployed: no public IP
+### cmd: az network nic show --resource-group rg-cne-lab --name nic-cne-tier0 --output json   (ipConfigurations only; etag, id, resourceGroup and type lines removed)
+### note: the ip configuration has no publicIPAddress property at all. The finding in (a) is a false positive.
+
+"ipConfigurations": [
+  {
+    "name": "tier0-nic-conf",
+    "primary": true,
+    "privateIPAddress": "10.101.0.4",
+    "privateIPAddressVersion": "IPv4",
+    "privateIPAllocationMethod": "Dynamic",
+    "provisioningState": "Succeeded",
+    "subnet": {
+      "id": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier0/subnets/snet-tier0-workload"
+    }
+  }
+]
+
+### (c) the same NIC in the deployed-state plan
+### cmd: jq '.resource_changes[] | select(.address == "azurerm_network_interface.spoke[\"tier0\"]") | {actions: .change.actions, after: .change.after.ip_configuration, unknown: .change.after_unknown.ip_configuration}' "$TMPDIR/plan-deployed.json"
+### note: with the NIC deployed, the provider reports the absent public IP as an empty string. On a fresh build the same field is null, which is what the rule tested for (public_ip_address_id != null) and what its unit tests used. "" is not null, so has_pip held and the rule denied.
+
+{
+  "actions": [
+    "no-op"
+  ],
+  "after": [
+    {
+      "gateway_load_balancer_frontend_ip_configuration_id": "",
+      "name": "tier0-nic-conf",
+      "primary": true,
+      "private_ip_address": "10.101.0.4",
+      "private_ip_address_allocation": "Dynamic",
+      "private_ip_address_version": "IPv4",
+      "public_ip_address_id": "",
+      "subnet_id": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier0/subnets/snet-tier0-workload"
+    }
+  ],
+  "unknown": null
+}
+
+### (d) the fix
+### note: both representations of "no public IP" are accepted. The rule also changes from "has a value and the value is wrong" to fail closed: a configuration where the field is absent altogether, rather than null or "", is now denied instead of skipped. A unit test for the deployed shape is added (tier-0 NIC, public_ip_address_id "", no deny expected).
+### cmd: git diff 531a4d0 d2d20ab -- infra/policy/pip_tier0.rego   (changed lines only)
+
+-	cfg.public_ip_address_id != null
++	not cfg.public_ip_address_id in no_pip_values
+
++no_pip_values = {null, ""}
+
+### (e) after the fix: unit tests and the same deployed-state plan
+### cmd: conftest verify -p infra/policy
+
+42 tests, 42 passed, 0 warnings, 0 failures, 0 exceptions, 0 skipped
+
+### cmd: conftest test "$TMPDIR/plan-deployed.json" -p infra/policy --all-namespaces
+
+8 tests, 8 passed, 0 warnings, 0 failures, 0 exceptions
+
+### result
+### A rule that passed its unit tests, CI (P6) and a negative test (P7) gave a false positive on the first plan taken with the lab deployed. The rules depend on the shape of the plan as well as on its content, and that shape changes with deployment state: the same absent value is null on a fresh build and "" once deployed. A rule tested in one shape is unproven in the other. With main applied, every pull request opened while the lab was up would have failed the required plan check on this finding.

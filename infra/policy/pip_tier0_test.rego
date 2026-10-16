@@ -36,6 +36,12 @@ test_tier0_nic_unknown_pip_denied if {
 	]}
 }
 
+test_tier0_nic_empty_pip_passes if {
+	count(deny) == 0 with input as {"resource_changes": [
+		nic("tier0", [{"public_ip_address_id": ""}], [{}]),
+	]}
+}
+
 test_tier0_pip_denied if {
 	count(deny) == 1 with input as {"resource_changes": [
 		pip("tier0"),

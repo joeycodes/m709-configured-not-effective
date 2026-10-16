@@ -1,5 +1,7 @@
 package terraform.pip_tier0
 
+no_pip_values = {null, ""}
+
 tier0_nic(r) if {
 	r.type == "azurerm_network_interface"
 	r.change.after.tags.zone == "tier0"
@@ -7,7 +9,7 @@ tier0_nic(r) if {
 
 has_pip(r) if {
 	some cfg in r.change.after.ip_configuration
-	cfg.public_ip_address_id != null
+	not cfg.public_ip_address_id in no_pip_values
 }
 
 has_pip(r) if {
