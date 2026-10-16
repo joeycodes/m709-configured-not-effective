@@ -39,6 +39,8 @@ jobs:
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       ARM_USE_OIDC:        true
       TF_VAR_admin_ssh_public_key: ${{ vars.LAB_SSH_PUBLIC_KEY }}
+      CONFTEST_VERSION: 0.71.1
+      CONFTEST_SHA256: c3f6b2a753bd56e377a1e51a95ae3e057f926f2e9139f7d5b5dfbbaf810f7985
 
     steps:
       # The runner starts empty. Nothing from the repo exists until this.
@@ -74,6 +76,24 @@ jobs:
         id: plan
         run: terraform plan -input=false -no-color -out=tfplan | tee plan.txt
 
+      - name: Install conftest
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          cd "$RUNNER_TEMP"
+          curl -sSfL -O "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          sha256sum -c <<< "${CONFTEST_SHA256}  conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          tar -xzf "conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" -C $RUNNER_TEMP/bin conftest
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/conftest" --version
+
+      # The JSON plan carries sensitive values in plain text. It is written
+      # to the runner's temp directory, outside the checkout, and is never
+      # uploaded; it is gone when the job ends.
+      - name: Policy test against the plan
+        run: |
+          terraform show -json "tfplan" > "$RUNNER_TEMP/plan.json"
+          conftest test --no-color --policy ../../policy "$RUNNER_TEMP/plan.json" --all-namespaces | tee "$RUNNER_TEMP/conftest.txt"
+
       # Render the plan on the run summary page, one click from the PR's
       # checks, so reviewing does not mean scrolling raw logs.
       - name: Publish plan to job summary
@@ -83,6 +103,11 @@ jobs:
             echo '## Terraform plan'
             echo '```'
             tail -c 60000 plan.txt || echo '(no plan output)'
+            echo '```'
+            echo ''
+            echo '## Policy tests'
+            echo '```'
+            cat "$RUNNER_TEMP/conftest.txt" 2>/dev/null || echo '(no policy test output)'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

@@ -97,7 +97,7 @@ provider "azurerm" {
 ```
 
 - `infra/envs/lab/main.tf`: for the loop test, just one resource group.
-- `infra/policy/`: one starter Rego rule (for example, require standard tags) plus a Checkov/tfsec config.
+- `infra/policy/`: one starter Rego rule (for example, require standard tags) plus a Checkov config (tfsec was a design option, not adopted: ADR D20).
 - `.github/workflows/`: `plan.yml`, `apply.yml`, `nightly-destroy.yml`.
 
 ---

@@ -1,0 +1,95 @@
+### 2026-10-13
+### test: the zone-tag rule (infra/policy/zone_tag.rego) rejects every taggable resource that lacks a valid zone tag, and passes once the configuration carries one
+### note: run locally against a plan of the lab while it was destroyed, so every resource is planned for creation (the fresh-build case CI meets after each nightly destroy). Plan generated with the author's account: terraform plan -out="$TMPDIR/tfplan"; terraform show -json "$TMPDIR/tfplan" > "$TMPDIR/plan.json". The plan stays outside the repository; *.tfplan, tfplan and plan.json are also in .gitignore.
+### note: the rule selects resources by schema, not by a list of types: any planned resource whose state has a tags attribute (or whose tags are unknown at plan time) is checked; only azurerm_resource_group is exempt. (c) shows which types that selects: the six zone-bearing types plus the resource group.
+### note: (b) and (d) bracket the change that added the tags. 29 failures in (b), one per taggable resource; the same 29 resources carry a zone in (d). The zone values are derived from the for_each key or value that also places each resource (each.key, each.value.vnet) or written once for the single hub and on-premises resources; the rule checks that a zone is present and valid, not that it is the right one, so (d) was read by eye.
+### note: between (b) and (d) the rule was reordered so that a destroyed resource (after = null) is excluded before its attributes are read; results are unchanged. conftest counts each deny rule as one test when nothing fails, hence "2 tests" in (d).
+### note: the temporary directory path is shown as $TMPDIR.
+
+### (a) unit tests
+### cmd: conftest verify -p infra/policy --show-builtin-errors
+
+10 tests, 10 passed, 0 warnings, 0 failures, 0 exceptions, 0 skipped
+
+### (b) before the zone tags were added
+### cmd: conftest test "$TMPDIR/plan.json" -p infra/policy --all-namespaces
+
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_linux_virtual_machine.hub: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_linux_virtual_machine.onprem-gw: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_linux_virtual_machine.onprem-srv: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_linux_virtual_machine.spoke["tier0"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_linux_virtual_machine.spoke["tier1"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_linux_virtual_machine.spoke["tier2"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_network_interface.hub: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_network_interface.onprem-gw: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_network_interface.onprem-srv: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_network_interface.spoke["tier0"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_network_interface.spoke["tier1"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_network_interface.spoke["tier2"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_network_security_group.onprem["snet-onprem-gw"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_network_security_group.onprem["snet-onprem-srv"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_network_security_group.workload["snet-hub-nva"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_network_security_group.workload["snet-tier0-workload"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_network_security_group.workload["snet-tier1-workload"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_network_security_group.workload["snet-tier2-workload"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_public_ip.hub: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_public_ip.onprem-gw: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_route_table.onprem-srv: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_route_table.spoke["tier0"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_route_table.spoke["tier1"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_route_table.spoke["tier2"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_virtual_network.this["hub"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_virtual_network.this["onprem"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_virtual_network.this["tier0"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_virtual_network.this["tier1"]: missing zone tag
+FAIL - $TMPDIR/plan.json - terraform.zone_tag - azurerm_virtual_network.this["tier2"]: missing zone tag
+
+29 tests, 0 passed, 0 warnings, 29 failures, 0 exceptions
+
+### (c) the resource types the rule treats as taggable
+### cmd: jq -r '[.resource_changes[] | select(.change.after != null and (.change.after | has("tags"))) | .type] | unique[]' "$TMPDIR/plan.json"
+
+azurerm_linux_virtual_machine
+azurerm_network_interface
+azurerm_network_security_group
+azurerm_public_ip
+azurerm_resource_group
+azurerm_route_table
+azurerm_virtual_network
+
+### (d) after the zone tags were added
+### cmd: conftest test "$TMPDIR/plan.json" -p infra/policy --all-namespaces
+
+2 tests, 2 passed, 0 warnings, 0 failures, 0 exceptions
+
+### cmd: jq -r '.resource_changes[] | select(.change.after.tags.zone != null) | "\(.change.after.tags.zone)\t\(.address)"' "$TMPDIR/plan.json" | sort
+
+hub	azurerm_linux_virtual_machine.hub
+hub	azurerm_network_interface.hub
+hub	azurerm_network_security_group.workload["snet-hub-nva"]
+hub	azurerm_public_ip.hub
+hub	azurerm_virtual_network.this["hub"]
+onprem	azurerm_linux_virtual_machine.onprem-gw
+onprem	azurerm_linux_virtual_machine.onprem-srv
+onprem	azurerm_network_interface.onprem-gw
+onprem	azurerm_network_interface.onprem-srv
+onprem	azurerm_network_security_group.onprem["snet-onprem-gw"]
+onprem	azurerm_network_security_group.onprem["snet-onprem-srv"]
+onprem	azurerm_public_ip.onprem-gw
+onprem	azurerm_route_table.onprem-srv
+onprem	azurerm_virtual_network.this["onprem"]
+tier0	azurerm_linux_virtual_machine.spoke["tier0"]
+tier0	azurerm_network_interface.spoke["tier0"]
+tier0	azurerm_network_security_group.workload["snet-tier0-workload"]
+tier0	azurerm_route_table.spoke["tier0"]
+tier0	azurerm_virtual_network.this["tier0"]
+tier1	azurerm_linux_virtual_machine.spoke["tier1"]
+tier1	azurerm_network_interface.spoke["tier1"]
+tier1	azurerm_network_security_group.workload["snet-tier1-workload"]
+tier1	azurerm_route_table.spoke["tier1"]
+tier1	azurerm_virtual_network.this["tier1"]
+tier2	azurerm_linux_virtual_machine.spoke["tier2"]
+tier2	azurerm_network_interface.spoke["tier2"]
+tier2	azurerm_network_security_group.workload["snet-tier2-workload"]
+tier2	azurerm_route_table.spoke["tier2"]
+tier2	azurerm_virtual_network.this["tier2"]

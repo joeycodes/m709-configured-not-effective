@@ -1,0 +1,87 @@
+### 2026-10-15
+### test: both policy checks block a bad change on a pull request into main, and the rules' unit tests catch a rule that has silently stopped firing when the check on the real plan does not
+### note: pull request #33 (test/policy-negative -> main), opened as a negative test, to be closed without merging once this record was taken. The branch starts from feature/policy-rules at b6f6e86 (P6), so it carries the rules and the CI steps of #32. Two commits were pushed one at a time, each run allowed to finish before the next push, so that each run differs from the last by one change.
+### note: the ruleset on main requires four checks: Terraform plan / plan, Terraform plan / plan-observability, Policy / checkov and Policy / conftest (added as required before this test). The checks run the pull request's own workflow files and policy code; main holds neither yet. The ruleset matches checks by name.
+### note: the expected result of each push was written into its commit message before the push. Both runs match it exactly.
+### note: logs fetched with the GitHub CLI after each run had completed. Screenshots of the pull request's check list and of the failing step, taken after each run, are in the same directory (P7-a-*.png, P7-b-*.png).
+
+### (a) push 1, bddb336: the 10.100.0.0/14 route removed from the spoke route tables
+### note: the route block is shared by all three instances of azurerm_route_table.spoke (for_each over the spokes), so all three lose it. The remaining 0.0.0.0/0 route still references the hub NIC only, so the reference rule does not fire, and its next hop is unknown at plan time, so the next-hop rule does not fire either.
+### expected: Terraform plan / plan fails with three spoke_routes denies (8 tests, 5 passed, 3 failures); Policy / conftest passes (41/41); merge blocked.
+### cmd: git diff b6f6e86 bddb336
+
+diff --git a/infra/envs/lab/routing.tf b/infra/envs/lab/routing.tf
+--- a/infra/envs/lab/routing.tf
++++ b/infra/envs/lab/routing.tf
+@@ -26,13 +26,6 @@ resource "azurerm_route_table" "spoke" {
+   resource_group_name = azurerm_resource_group.lab.name
+   tags                = merge(local.common_tags, { "zone" = each.key })
+ 
+-  route {
+-    name                   = "to-other-tiers-via-nva"
+-    address_prefix         = "10.100.0.0/14"
+-    next_hop_type          = "VirtualAppliance"
+-    next_hop_in_ip_address = azurerm_network_interface.hub.private_ip_address
+-  }
+-
+   route {
+     name                   = "default-via-nva"
+     address_prefix         = "0.0.0.0/0"
+
+### cmd: gh run view 38823708475 --log | grep -E "FAIL|tests,"     (Terraform plan)
+
+plan	Policy test against the plan	2026-10-15T23:28:14.2142643Z FAIL - /home/runner/work/_temp/plan.json - terraform.spoke_routes - azurerm_route_table.spoke["tier0"]: must route 10.100.0.0/14 to a VirtualAppliance
+plan	Policy test against the plan	2026-10-15T23:28:14.2143763Z FAIL - /home/runner/work/_temp/plan.json - terraform.spoke_routes - azurerm_route_table.spoke["tier1"]: must route 10.100.0.0/14 to a VirtualAppliance
+plan	Policy test against the plan	2026-10-15T23:28:14.2144808Z FAIL - /home/runner/work/_temp/plan.json - terraform.spoke_routes - azurerm_route_table.spoke["tier2"]: must route 10.100.0.0/14 to a VirtualAppliance
+plan	Policy test against the plan	2026-10-15T23:28:14.2145518Z 8 tests, 5 passed, 0 warnings, 3 failures, 0 exceptions
+
+### cmd: gh run view 38823708474 --log | grep -E "FAIL|tests,"     (Policy)
+
+conftest	Unit tests	2026-10-15T23:27:53.6069455Z 41 tests, 41 passed, 0 warnings, 0 failures, 0 exceptions, 0 skipped
+
+### pull request: 1 failing (Terraform plan / plan), 3 successful; all four marked Required; "Squash and merge" disabled. Screenshots: P7-a-checks.png, P7-a-plan-step.png. The job summary step ran after the failing step (if: always()).
+
+### (b) push 2, 989b1e8: the spoke route table selection broken, the /14 route still missing
+### note: one field name in the selection helper is changed from tags to tag. The field does not exist, so rc.change.after.tag.zone is undefined for every resource; spoke_route_table(rc) never holds and the three spoke_routes denies are never reached. The rule compiles and loads, and it reports nothing.
+### expected: Terraform plan / plan passes (8/8) although the infrastructure is unchanged from (a); Policy / conftest fails on every unit test that expects a spoke_routes deny (41 tests, 29 passed, 12 failures); merge blocked.
+### cmd: git diff bddb336 989b1e8
+
+diff --git a/infra/policy/spoke_routes.rego b/infra/policy/spoke_routes.rego
+--- a/infra/policy/spoke_routes.rego
++++ b/infra/policy/spoke_routes.rego
+@@ -28,7 +28,7 @@ next_hops_from_hub_nic(rc) if {
+ spoke_route_table(rc) if {
+ 	rc.change.after != null
+ 	rc.type == "azurerm_route_table"
+-	rc.change.after.tags.zone in checked_zones
++	rc.change.after.tag.zone in checked_zones
+ }
+ 
+ spoke_route_next_hop(rc) if {
+
+### cmd: gh run view 38824444304 --log | grep -E "FAIL|tests,"     (Terraform plan)
+
+plan	Policy test against the plan	2026-10-15T23:35:38.4793886Z 8 tests, 8 passed, 0 warnings, 0 failures, 0 exceptions
+
+### cmd: gh run view 38824444291 --log | grep -E "FAIL|tests,"     (Policy)
+
+conftest	Unit tests	2026-10-15T23:35:05.7293186Z FAIL - infra/policy/spoke_routes_test.rego -  - data.terraform.spoke_routes.test_empty_routes_denied
+conftest	Unit tests	2026-10-15T23:35:05.7296942Z FAIL - infra/policy/spoke_routes_test.rego -  - data.terraform.spoke_routes.test_missing_default_route_denied
+conftest	Unit tests	2026-10-15T23:35:05.7300501Z FAIL - infra/policy/spoke_routes_test.rego -  - data.terraform.spoke_routes.test_default_route_wrong_nexthop_denied
+conftest	Unit tests	2026-10-15T23:35:05.7304004Z FAIL - infra/policy/spoke_routes_test.rego -  - data.terraform.spoke_routes.test_default_route_none_denied
+conftest	Unit tests	2026-10-15T23:35:05.7307514Z FAIL - infra/policy/spoke_routes_test.rego -  - data.terraform.spoke_routes.test_two_bad_tables_two_messages
+conftest	Unit tests	2026-10-15T23:35:05.7310934Z FAIL - infra/policy/spoke_routes_test.rego -  - data.terraform.spoke_routes.test_only_bad_table_reported
+conftest	Unit tests	2026-10-15T23:35:05.7316109Z FAIL - infra/policy/spoke_routes_test.rego -  - data.terraform.spoke_routes.test_separate_reference_name_denied
+conftest	Unit tests	2026-10-15T23:35:05.7320657Z FAIL - infra/policy/spoke_routes_test.rego -  - data.terraform.spoke_routes.test_spoke_route_reference_denied
+conftest	Unit tests	2026-10-15T23:35:05.7324031Z FAIL - infra/policy/spoke_routes_test.rego -  - data.terraform.spoke_routes.test_route_empty_reference_denied
+conftest	Unit tests	2026-10-15T23:35:05.7327934Z FAIL - infra/policy/spoke_routes_test.rego -  - data.terraform.spoke_routes.test_separate_route_name_denied
+conftest	Unit tests	2026-10-15T23:35:05.7331196Z FAIL - infra/policy/spoke_routes_test.rego -  - data.terraform.spoke_routes.test_mismatched_nexthop_denied
+conftest	Unit tests	2026-10-15T23:35:05.7334458Z FAIL - infra/policy/spoke_routes_test.rego -  - data.terraform.spoke_routes.test_empty_configuration_denied
+conftest	Unit tests	2026-10-15T23:35:05.7337701Z 41 tests, 29 passed, 0 warnings, 12 failures, 0 exceptions, 0 skipped
+
+### pull request: 1 failing (Policy / conftest), 3 successful, Terraform plan / plan among them; "Squash and merge" disabled. Screenshots: P7-b-checks.png, P7-b-unit-tests-step.png.
+
+### result
+### (a) with the rules intact, the plan check stops a change that takes spoke-to-spoke traffic off the NVA, and names each affected route table.
+### (b) with one field name wrong in the rule, the same change passes the plan check. The 29 unit tests that still pass are the 24 of the other three rules and the 5 spoke_routes tests that expect no deny, which a rule that never fires also satisfies; only the 12 spoke_routes tests that expect a deny notice the fault. Had Policy / conftest not been a required check, (b) would have been mergeable and the missing /14 route would have reached apply.
+### A green check on a compliant plan does not distinguish a working rule from one that has stopped firing. That is why every rule carries at least one test that expects a deny, and why the unit tests run as a required check on every pull request.

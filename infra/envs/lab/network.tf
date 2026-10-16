@@ -50,7 +50,7 @@ resource "azurerm_virtual_network" "this" {
   resource_group_name = azurerm_resource_group.lab.name
   location            = azurerm_resource_group.lab.location
   address_space       = [each.value]
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = each.key })
 }
 
 resource "azurerm_subnet" "reserved" {
@@ -96,7 +96,7 @@ resource "azurerm_network_security_group" "workload" {
   name                = replace(each.key, "snet-", "nsg-")
   resource_group_name = azurerm_resource_group.lab.name
   location            = azurerm_resource_group.lab.location
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = each.value.vnet })
 }
 
 resource "azurerm_network_security_group" "onprem" {
@@ -105,7 +105,7 @@ resource "azurerm_network_security_group" "onprem" {
   name                = replace(each.key, "snet-", "nsg-")
   resource_group_name = azurerm_resource_group.lab.name
   location            = azurerm_resource_group.lab.location
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = each.value.vnet })
 }
 
 resource "azurerm_network_security_rule" "hub_allow" {
@@ -273,7 +273,7 @@ resource "azurerm_public_ip" "hub" {
   location            = azurerm_resource_group.lab.location
   allocation_method   = "Static"
   sku                 = "Standard"
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = "hub" })
 }
 
 resource "azurerm_public_ip" "onprem-gw" {
@@ -282,5 +282,5 @@ resource "azurerm_public_ip" "onprem-gw" {
   location            = azurerm_resource_group.lab.location
   allocation_method   = "Static"
   sku                 = "Standard"
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = "onprem" })
 }

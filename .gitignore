@@ -12,3 +12,8 @@ override_*.tf
 
 # Provider dependency lock 
 !.terraform.lock.hcl
+
+# Terraform plans: binary and JSON forms both carry sensitive values in plaintext.
+*.tfplan
+tfplan
+plan.json

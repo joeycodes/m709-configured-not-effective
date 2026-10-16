@@ -122,7 +122,7 @@ CI is used from day one; it is the enforcement point for the "prevent" stage, no
 2. OIDC login to Azure
 3. `terraform init` (remote state); `fmt`, `validate`
 4. `terraform plan -out`
-5. **policy gate:** OPA/Rego via `conftest` against the plan; Checkov and tfsec as secondary scanners. Non-compliant plan fails the check.
+5. **policy gate:** OPA/Rego via `conftest` against the plan; Checkov as the predefined scanner (tfsec was a design option, not adopted: ADR D20). Non-compliant plan fails the check.
 6. **reachability assertion:** deterministic check that Tier-2 cannot reach Tier-0 (see 6.3). Fails the check if reachable.
 7. post results to the PR.
 

@@ -1,0 +1,80 @@
+### 2026-10-14
+### test: the spoke-routes rule (infra/policy/spoke_routes.rego) rejects a spoke route table that lacks a required route to a virtual appliance, that takes a next hop from anything but the hub NIC, or that names a known next hop other than the NVA
+### note: three deny rules, each over the route tables zoned tier0/tier1/tier2 (resource_changes):
+###   (1) 0.0.0.0/0 and 10.100.0.0/14 each route to a VirtualAppliance;
+###   (2) the table's configuration block exists and every reference in its route expression is the hub NIC (azurerm_network_interface.hub or .hub.private_ip_address), the list being non-empty;
+###   (3) any VirtualAppliance route whose next hop is known at plan time names lab.nva_ip (10.100.2.4, infra/policy/lab.rego).
+### note: on a fresh build every next hop is unknown (absent from `after`, true in `after_unknown`), because it references the hub NIC before the NIC exists; rule (2) covers that case from the configuration. A next hop written as a literal address is known at plan time and never appears among the references, so (2) cannot see it: rule (3) exists for that case, and (e) shows it is the only rule that fires there. The hub NIC's own address is checked separately (nva_ip.rego).
+### note: `references` lists each reference twice over: once as the attribute (hub.private_ip_address) and once as the resource (hub), and the route block's two routes each contribute both, so the real plan carries four entries.
+### note: same plan as P1 (d) and P2: the lab destroyed, every resource planned for creation. (b) is that plan unmodified; (c) to (e) each change it in one place, shown by the diff, keeping the shape Terraform generates (where a route is removed or a next hop becomes known, the matching after_unknown entry is changed with it).
+### note: run with conftest 0.71.1 (OPA 1.21.1), the version CI will pin, on a copy of the plan in a scratch directory; file paths are shown as file names. Colour codes removed. The failure messages are those of the rule as of this run.
+
+### (a) unit tests, all rules
+### cmd: conftest verify -p infra/policy --show-builtin-errors
+
+35 tests, 35 passed, 0 warnings, 0 failures, 0 exceptions, 0 skipped
+
+### (b) the lab's plan, unmodified
+### cmd: conftest test plan.json -p infra/policy --all-namespaces
+
+7 tests, 7 passed, 0 warnings, 0 failures, 0 exceptions
+
+### (c) rule (1): the 10.100.0.0/14 route removed from tier0's route table
+### cmd: jq '(.resource_changes[] | select(.address == "azurerm_route_table.spoke[\"tier0\"]") | .change) |= (.after.route |= map(select(.address_prefix != "10.100.0.0/14")) | .after_unknown.route |= .[0:1])' plan.json > neg-a.json
+### cmd: diff <(jq -S . plan.json) <(jq -S . neg-a.json)
+
+6509,6513d6508
+<             },
+<             {
+<               "address_prefix": "10.100.0.0/14",
+<               "name": "to-other-tiers-via-nva",
+<               "next_hop_type": "VirtualAppliance"
+6535,6537d6529
+<             {
+<               "next_hop_in_ip_address": true
+<             },
+
+### cmd: conftest test neg-a.json -p infra/policy --all-namespaces
+
+FAIL - neg-a.json - terraform.spoke_routes - azurerm_route_table.spoke["tier0"]: must route 10.100.0.0/14 to a VirtualAppliance
+
+7 tests, 6 passed, 0 warnings, 1 failure, 0 exceptions
+
+### (d) rule (2): a reference to another NIC added to the spoke route tables' configuration block
+### note: the three spoke tables come from one for_each block, so one change to its configuration is reported once per table.
+### cmd: jq '(.configuration.root_module.resources[] | select(.address == "azurerm_route_table.spoke") | .expressions.route.references) += ["azurerm_network_interface.spoke"]' plan.json > neg-b.json
+### cmd: diff <(jq -S . plan.json) <(jq -S . neg-b.json)
+
+1327c1327,1328
+<                 "azurerm_network_interface.hub"
+---
+>                 "azurerm_network_interface.hub",
+>                 "azurerm_network_interface.spoke"
+
+### cmd: conftest test neg-b.json -p infra/policy --all-namespaces
+
+FAIL - neg-b.json - terraform.spoke_routes - Must link azurerm_route_table.spoke["tier0"] to allowed Hub references
+FAIL - neg-b.json - terraform.spoke_routes - Must link azurerm_route_table.spoke["tier1"] to allowed Hub references
+FAIL - neg-b.json - terraform.spoke_routes - Must link azurerm_route_table.spoke["tier2"] to allowed Hub references
+
+7 tests, 4 passed, 0 warnings, 3 failures, 0 exceptions
+
+### (e) rule (3): tier1's default route given a literal next hop, 10.103.0.4 (an address in tier 2)
+### note: route[0] of tier1's table is 0.0.0.0/0 in this plan. The configuration's references are untouched and still name only the hub NIC, so rule (2) passes; only rule (3) fires.
+### cmd: jq '(.resource_changes[] | select(.address == "azurerm_route_table.spoke[\"tier1\"]") | .change) |= (.after.route[0].next_hop_in_ip_address = "10.103.0.4" | .after_unknown.route[0] |= del(.next_hop_in_ip_address))' plan.json > neg-c.json
+### cmd: diff <(jq -S . plan.json) <(jq -S . neg-c.json)
+
+6568a6569
+>               "next_hop_in_ip_address": "10.103.0.4",
+6596,6598c6597
+<             {
+<               "next_hop_in_ip_address": true
+<             },
+---
+>             {},
+
+### cmd: conftest test neg-c.json -p infra/policy --all-namespaces
+
+FAIL - neg-c.json - terraform.spoke_routes - azurerm_route_table.spoke["tier1"]: illegal next hop address.
+
+7 tests, 6 passed, 0 warnings, 1 failure, 0 exceptions

@@ -57,7 +57,7 @@ Goal: the pipeline becomes the enforcement point, and the telemetry layer can pr
 
 ### Week 5 (Oct 1–7) — Policy-as-code
 - Rego policies in `infra/policy/`, run by `conftest` against `terraform plan -json`. Starter set: subnet without an associated NSG → deny; public IP on a Tier-0 resource → deny; spoke route table whose default next hop is not the firewall → deny; required tags.
-- Checkov and tfsec wired in as secondary scanners; results posted to the PR.
+- Checkov wired in as the predefined scanner (tfsec was a design option, not adopted: ADR D20); results posted to the PR.
 - **Exit:** a deliberately non-compliant PR fails the check. **Record this run** — it satisfies a success criterion and is demo footage.
 
 ### Week 6 (Oct 8–14) — Deterministic assertions and gated apply

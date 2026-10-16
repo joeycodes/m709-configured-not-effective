@@ -5,7 +5,7 @@ resource "azurerm_network_interface" "spoke" {
   name                = "nic-cne-${each.key}"
   location            = azurerm_resource_group.lab.location
   resource_group_name = azurerm_resource_group.lab.name
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = each.key })
 
   ip_configuration {
     name                          = "${each.key}-nic-conf"
@@ -20,7 +20,7 @@ resource "azurerm_network_interface" "hub" {
   name                  = "nic-cne-hub"
   location              = azurerm_resource_group.lab.location
   resource_group_name   = azurerm_resource_group.lab.name
-  tags                  = local.common_tags
+  tags                  = merge(local.common_tags, { "zone" = "hub" })
   ip_forwarding_enabled = true
 
   ip_configuration {
@@ -37,7 +37,7 @@ resource "azurerm_network_interface" "onprem-srv" {
   name                = "nic-cne-onprem-srv"
   location            = azurerm_resource_group.lab.location
   resource_group_name = azurerm_resource_group.lab.name
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = "onprem" })
 
   ip_configuration {
     name                          = "onprem-srv-nic-conf"
@@ -52,7 +52,7 @@ resource "azurerm_network_interface" "onprem-gw" {
   name                  = "nic-cne-onprem-gw"
   location              = azurerm_resource_group.lab.location
   resource_group_name   = azurerm_resource_group.lab.name
-  tags                  = local.common_tags
+  tags                  = merge(local.common_tags, { "zone" = "onprem" })
   ip_forwarding_enabled = true
 
   ip_configuration {
@@ -74,7 +74,7 @@ resource "azurerm_linux_virtual_machine" "spoke" {
   location            = azurerm_resource_group.lab.location
   size                = var.endpoint_vm_size
   admin_username      = "azureuser"
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = each.key })
 
   network_interface_ids = [
     azurerm_network_interface.spoke[each.key].id,
@@ -105,7 +105,7 @@ resource "azurerm_linux_virtual_machine" "hub" {
   location            = azurerm_resource_group.lab.location
   size                = var.nva_vm_size
   admin_username      = "azureuser"
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = "hub" })
 
   custom_data = base64encode(templatefile("${path.module}/cloud-init-nva.yaml", {
     psk          = random_password.ipsec_psk.result
@@ -146,7 +146,7 @@ resource "azurerm_linux_virtual_machine" "onprem-srv" {
   location            = azurerm_resource_group.lab.location
   size                = var.srv_vm_size
   admin_username      = "azureuser"
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = "onprem" })
 
   network_interface_ids = [
     azurerm_network_interface.onprem-srv.id,
@@ -177,7 +177,7 @@ resource "azurerm_linux_virtual_machine" "onprem-gw" {
   location            = azurerm_resource_group.lab.location
   size                = var.gw_vm_size
   admin_username      = "azureuser"
-  tags                = local.common_tags
+  tags                = merge(local.common_tags, { "zone" = "onprem" })
 
   custom_data = base64encode(templatefile("${path.module}/cloud-init-gw.yaml", {
     psk          = random_password.ipsec_psk.result

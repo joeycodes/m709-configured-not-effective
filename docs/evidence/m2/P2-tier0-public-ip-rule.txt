@@ -1,0 +1,38 @@
+### 2026-10-13
+### test: the tier-0 public IP rule (infra/policy/pip_tier0.rego) rejects a tier-0 NIC associated with a public IP, including on a fresh build where the IP's ID is unknown at plan time, and rejects a public IP placed in tier 0
+### note: same plan as P1 (d): the lab destroyed, every resource planned for creation, zone tags present. Generated locally; the plan stays in $TMPDIR.
+### note: on a fresh build a NIC's public_ip_address_id is null in `after` and true in `after_unknown`, because the public IP it references does not exist yet. A rule that tests only `public_ip_address_id != null` passes such a NIC. The rule therefore has two branches, one for a known ID and one for an unknown one. The unit tests cover both, plus a NIC with two ip_configurations where only the second carries a public IP.
+### note: a first version of the rule read ip_configuration as an object rather than a list and tested `== null`; it could never fire, and it also returned no failures on (b). A passing result on a compliant plan does not show that a rule can reject anything, which is what (c) is for.
+### note: (c) is the plan from (b) with one change: the zone tag of the hub NIC and the hub public IP relabelled from hub to tier0 (the diff shows the two lines). Nothing else is edited, so the NIC's public IP association keeps the shape Terraform generated, unknown ID included. The NIC is rejected through the unknown branch.
+### note: conftest counts each deny rule as one test when it does not fire: two rules in each of terraform.zone_tag and terraform.pip_tier0, hence "4 tests". The temporary directory path is shown as $TMPDIR.
+
+### (a) unit tests, both rules
+### cmd: opa fmt -w infra/policy
+### cmd: conftest verify -p infra/policy --show-builtin-errors
+
+18 tests, 18 passed, 0 warnings, 0 failures, 0 exceptions, 0 skipped
+
+### (b) the lab's plan, unmodified
+### cmd: conftest test "$TMPDIR/plan.json" -p infra/policy --all-namespaces
+
+4 tests, 4 passed, 0 warnings, 0 failures, 0 exceptions
+
+### (c) the same plan with the hub NIC and hub public IP relabelled tier0
+### cmd: jq '(.resource_changes[] | select(.address == "azurerm_network_interface.hub" or .address == "azurerm_public_ip.hub") | .change.after.tags.zone) = "tier0"' "$TMPDIR/plan.json" > "$TMPDIR/plan-neg.json"
+### cmd: diff <(jq -S . "$TMPDIR/plan.json") <(jq -S . "$TMPDIR/plan-neg.json")
+
+5428c5428
+<             "zone": "hub"
+---
+>             "zone": "tier0"
+6320c6320
+<             "zone": "hub"
+---
+>             "zone": "tier0"
+
+### cmd: conftest test "$TMPDIR/plan-neg.json" -p infra/policy --all-namespaces
+
+FAIL - $TMPDIR/plan-neg.json - terraform.pip_tier0 - Public IP 'azurerm_public_ip.hub' must not be tagged with tier0 zone.
+FAIL - $TMPDIR/plan-neg.json - terraform.pip_tier0 - Tier 0 NIC 'azurerm_network_interface.hub' must not be associated with a public IP address.
+
+4 tests, 2 passed, 0 warnings, 2 failures, 0 exceptions

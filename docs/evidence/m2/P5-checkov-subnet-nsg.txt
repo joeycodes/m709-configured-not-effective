@@ -1,0 +1,156 @@
+### 2026-10-15
+### test: rule 4 (every subnet that can take an NSG has one) is enforced by Checkov's predefined check CKV2_AZURE_31, not by a custom Rego rule; this records that the check fires, at which granularity, and where it can be bypassed
+### note: CKV2_AZURE_31 is a graph check on the Terraform source. It follows the reference from azurerm_subnet_network_security_group_association.subnet_id to the subnet, so it needs no resource IDs and is unaffected by a fresh build, where every ID is unknown at plan time. That is the reason this rule sits with Checkov while the route-table association (rule 3d) was moved to the post-deploy effective-route check in W6.
+### note: the check is suppressed inline on azurerm_subnet.reserved only (GatewaySubnet, AzureFirewallSubnet: Azure does not accept an NSG on either). It stays active on azurerm_subnet.workload and azurerm_subnet.onprem.
+### note: the check proves that an NSG is associated, not what the NSG allows. The NSG's effective rules are verified after deployment (W6).
+### note: Checkov 3.3.19, the version pinned in .github/workflows/policy.yml. Run in a scratch copy of infra/ and .checkov.yml ($WORK); the repository was not modified. Each case starts from the committed network.tf and changes only what its diff shows. BC_SKIP_MAPPING=TRUE was set to stop Checkov fetching guideline links from the vendor API, which the network this was run on blocks; it does not change which checks run. Listings of CKV2_AZURE_31 alone are run outside $WORK so that .checkov.yml (quiet: true) does not hide passed and skipped results.
+
+### (a) baseline, unmodified
+### cmd: cd "$WORK" && checkov --config-file .checkov.yml
+terraform scan results:
+
+Passed checks: 125, Failed checks: 0, Skipped checks: 15
+
+
+exit=0
+
+### cmd: checkov -d "$WORK/infra" --framework terraform --check CKV2_AZURE_31 --compact
+
+	PASSED for resource: azurerm_subnet.workload["snet-hub-nva"]
+	PASSED for resource: azurerm_subnet.onprem["snet-onprem-gw"]
+	PASSED for resource: azurerm_subnet.workload["snet-tier0-workload"]
+	PASSED for resource: azurerm_subnet.workload["snet-tier1-workload"]
+	PASSED for resource: azurerm_subnet.workload["snet-tier2-workload"]
+	PASSED for resource: azurerm_subnet.onprem["snet-onprem-srv"]
+	SKIPPED for resource: azurerm_subnet.reserved["GatewaySubnet"]
+	Suppress comment: Azure does not support an NSG on GatewaySubnet or AzureFirewallSubnet
+	SKIPPED for resource: azurerm_subnet.reserved["AzureFirewallSubnet"]
+	Suppress comment: Azure does not support an NSG on GatewaySubnet or AzureFirewallSubnet
+
+### (b) the workload NSG association removed
+### edit: the association block commented out, and its two depends_on references removed so the configuration stays valid
+### cmd: diff network.tf (committed vs modified)
+
+209,214c209,214
+< resource "azurerm_subnet_network_security_group_association" "workload" {
+<   for_each = local.workload_subnets
+< 
+<   subnet_id                 = azurerm_subnet.workload[each.key].id
+<   network_security_group_id = azurerm_network_security_group.workload[each.key].id
+< }
+---
+> # resource "azurerm_subnet_network_security_group_association" "workload" {
+> #   for_each = local.workload_subnets
+> # 
+> #   subnet_id                 = azurerm_subnet.workload[each.key].id
+> #   network_security_group_id = azurerm_network_security_group.workload[each.key].id
+> # }
+242d241
+<     azurerm_subnet_network_security_group_association.workload,
+258d256
+<     azurerm_subnet_network_security_group_association.workload,
+
+### cmd: cd "$WORK" && checkov --config-file .checkov.yml
+terraform scan results:
+
+Passed checks: 121, Failed checks: 4, Skipped checks: 15
+
+Check: CKV2_AZURE_31: "Ensure VNET subnet is configured with a Network Security Group (NSG)"
+	FAILED for resource: azurerm_subnet.workload["snet-hub-nva"]
+	File: /envs/lab/network.tf:66-73
+Check: CKV2_AZURE_31: "Ensure VNET subnet is configured with a Network Security Group (NSG)"
+	FAILED for resource: azurerm_subnet.workload["snet-tier0-workload"]
+	File: /envs/lab/network.tf:66-73
+Check: CKV2_AZURE_31: "Ensure VNET subnet is configured with a Network Security Group (NSG)"
+	FAILED for resource: azurerm_subnet.workload["snet-tier1-workload"]
+	File: /envs/lab/network.tf:66-73
+Check: CKV2_AZURE_31: "Ensure VNET subnet is configured with a Network Security Group (NSG)"
+	FAILED for resource: azurerm_subnet.workload["snet-tier2-workload"]
+	File: /envs/lab/network.tf:66-73
+
+exit=1
+
+### (c) every association pointed at the tier-0 subnet
+### note: one association per subnet still exists, but three of them attach their NSG to the wrong subnet. Shows whether the check works per instance or per block.
+### cmd: diff network.tf (committed vs modified)
+
+212c212
+<   subnet_id                 = azurerm_subnet.workload[each.key].id
+---
+>   subnet_id                 = azurerm_subnet.workload["snet-tier0-workload"].id
+
+### cmd: cd "$WORK" && checkov --config-file .checkov.yml
+terraform scan results:
+
+Passed checks: 122, Failed checks: 3, Skipped checks: 15
+
+Check: CKV2_AZURE_31: "Ensure VNET subnet is configured with a Network Security Group (NSG)"
+	FAILED for resource: azurerm_subnet.workload["snet-hub-nva"]
+	File: /envs/lab/network.tf:66-73
+Check: CKV2_AZURE_31: "Ensure VNET subnet is configured with a Network Security Group (NSG)"
+	FAILED for resource: azurerm_subnet.workload["snet-tier1-workload"]
+	File: /envs/lab/network.tf:66-73
+Check: CKV2_AZURE_31: "Ensure VNET subnet is configured with a Network Security Group (NSG)"
+	FAILED for resource: azurerm_subnet.workload["snet-tier2-workload"]
+	File: /envs/lab/network.tf:66-73
+
+exit=1
+
+### (d) tier 2 filtered out of the association for_each
+### note: only tier 2 is actually uncovered. Checkov does not resolve the for expression, loses the association edge for the whole block, and reports all four subnets: over-reporting, failing closed.
+### cmd: diff network.tf (committed vs modified)
+
+210c210
+<   for_each = local.workload_subnets
+---
+>   for_each = { for k, v in local.workload_subnets : k => v if k != "snet-tier2-workload" }
+
+### cmd: cd "$WORK" && checkov --config-file .checkov.yml
+terraform scan results:
+
+Passed checks: 121, Failed checks: 4, Skipped checks: 15
+
+Check: CKV2_AZURE_31: "Ensure VNET subnet is configured with a Network Security Group (NSG)"
+	FAILED for resource: azurerm_subnet.workload["snet-hub-nva"]
+	File: /envs/lab/network.tf:66-73
+Check: CKV2_AZURE_31: "Ensure VNET subnet is configured with a Network Security Group (NSG)"
+	FAILED for resource: azurerm_subnet.workload["snet-tier0-workload"]
+	File: /envs/lab/network.tf:66-73
+Check: CKV2_AZURE_31: "Ensure VNET subnet is configured with a Network Security Group (NSG)"
+	FAILED for resource: azurerm_subnet.workload["snet-tier1-workload"]
+	File: /envs/lab/network.tf:66-73
+Check: CKV2_AZURE_31: "Ensure VNET subnet is configured with a Network Security Group (NSG)"
+	FAILED for resource: azurerm_subnet.workload["snet-tier2-workload"]
+	File: /envs/lab/network.tf:66-73
+
+exit=1
+
+### (e) an ordinary subnet added to reserved_subnets
+### note: the inline suppression is attached to the azurerm_subnet.reserved block, not to the two subnet names. A subnet placed in that map inherits the suppression and passes with no NSG. Known gap: a small custom rule restricting azurerm_subnet.reserved to AzureFirewallSubnet and GatewaySubnet would close it.
+### cmd: diff network.tf (committed vs modified)
+
+24a25
+>     snet-hub-mgmt       = "10.100.3.0/24"
+
+### cmd: cd "$WORK" && checkov --config-file .checkov.yml
+terraform scan results:
+
+Passed checks: 125, Failed checks: 0, Skipped checks: 16
+
+
+exit=0
+
+### cmd: checkov -d "$WORK/infra" --framework terraform --check CKV2_AZURE_31 --compact
+
+	PASSED for resource: azurerm_subnet.workload["snet-hub-nva"]
+	PASSED for resource: azurerm_subnet.onprem["snet-onprem-gw"]
+	PASSED for resource: azurerm_subnet.workload["snet-tier0-workload"]
+	PASSED for resource: azurerm_subnet.workload["snet-tier1-workload"]
+	PASSED for resource: azurerm_subnet.workload["snet-tier2-workload"]
+	PASSED for resource: azurerm_subnet.onprem["snet-onprem-srv"]
+	SKIPPED for resource: azurerm_subnet.reserved["GatewaySubnet"]
+	Suppress comment: Azure does not support an NSG on GatewaySubnet or AzureFirewallSubnet
+	SKIPPED for resource: azurerm_subnet.reserved["AzureFirewallSubnet"]
+	Suppress comment: Azure does not support an NSG on GatewaySubnet or AzureFirewallSubnet
+	SKIPPED for resource: azurerm_subnet.reserved["snet-hub-mgmt"]
+	Suppress comment: Azure does not support an NSG on GatewaySubnet or AzureFirewallSubnet
