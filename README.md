@@ -16,7 +16,7 @@ See [`docs/diagrams`](docs/diagrams) for the topology and [`docs/TECHNICAL-DESIG
 
 ## Pipeline
 
-1. **Prevent** — policy-as-code (OPA/Rego, Checkov, tfsec) blocks non-compliant Terraform in CI before it deploys.
+1. **Prevent** — policy-as-code (OPA/Rego, Checkov) blocks non-compliant Terraform in CI before it deploys.
 ![CICD](./docs/diagrams/CNE-M1-CICD.png)
 2. **Detect** — detection logic authored on Azure-native telemetry (Sentinel/KQL, flow logs, firewall and DNS logs). No third-party SIEM.
 3. **Attack** — adversary emulation (CALDERA, Atomic Red Team, stratus-red-team) mapped to MITRE ATT&CK, plus manual technique, under an assume-breach model.

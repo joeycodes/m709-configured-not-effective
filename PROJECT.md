@@ -67,7 +67,7 @@ Completion targeted by December 31, 2026, with the automatic extension to March 
 
 ## 7. Resources and cost
 
-- **Software:** Terraform, Open Policy Agent (Checkov, tfsec), GitHub Actions, FRRouting with StrongSwan/WireGuard, adversary-emulation tooling (CALDERA, Atomic Red Team, stratus-red-team), Azure-native detection (Microsoft Sentinel, Azure Monitor, Network Watcher). All open-source or free.
+- **Software:** Terraform, Open Policy Agent (Rego via conftest) and Checkov (tfsec was a design option, not adopted: ADR D20), GitHub Actions, FRRouting with StrongSwan/WireGuard, adversary-emulation tooling (CALDERA, Atomic Red Team, stratus-red-team), Azure-native detection (Microsoft Sentinel, Azure Monitor, Network Watcher). All open-source or free.
 - **Cloud:** one Azure subscription on the free tier for the core; managed Azure Firewall and VPN Gateway raised only in short validation windows.
 - **Hardware:** a personal workstation only.
 - **Cost:** approximately CAD 300, within the CAD 500 department limit. Director approval will be obtained before any expense is incurred.
