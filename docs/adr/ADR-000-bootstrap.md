@@ -1164,6 +1164,11 @@ spokes send to — had no check before deployment. M2 week 5 adds one.
   spoke route passed the plan check. Only the unit tests that expect a deny
   failed; the merge stayed blocked because they are a required check. Mock
   inputs do not protect against a provider renaming an attribute.
+- (−) **A rule depends on the shape of the plan, not only its content.** The
+  same absent value is `null` on a fresh build and `""` once the lab is
+  deployed. `pip_tier0`, tested only on fresh builds, denied the tier-0 NIC on
+  the first deployed-state plan; it now accepts both, and all eight rules
+  pass on a plan of either shape (P6, P8).
 - (−) **Some rules hold only together.** The spokes' next hop is unknown at
   plan time: `spoke_routes` requires it to reference the hub NIC, and `nva_ip`
   pins that NIC's address.
@@ -1181,7 +1186,7 @@ spokes send to — had no check before deployment. M2 week 5 adds one.
   complement this gate, not replace it.
 
 **Verification**
-Evidence P1–P7 in `docs/evidence/m2/`.
+Evidence P1–P8 in `docs/evidence/m2/`.
 
 ---
 
