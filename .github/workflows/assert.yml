@@ -1,0 +1,81 @@
+# Post-deployment reachability assertion. Runs after every successful
+# apply, and on demand.
+#
+# Checks what the policy gate cannot see at plan time: whether each tier's
+# routes actually took effect. For every tier NIC, the effective route
+# table must hold 0.0.0.0/0 and 10.100.0.0/14 as user routes to the NVA,
+# Active, and Azure's own 0.0.0.0/0 -> Internet must be Invalid. A route
+# table that exists but is not associated with the subnet passes every
+# plan check and fails here (ADR D20, rule 3d).
+#
+# Detective, not preventive: it runs after the change is deployed and
+# cannot block a merge. Run it by hand (workflow_dispatch) to check for
+# drift, such as a route changed in the portal, which no apply triggers.
+#
+# The expected next hop is read from infra/policy/lab.rego, the standard
+# the plan-time rules use; resource names come from Terraform outputs.
+
+name: Reachability assertion
+
+on:
+  workflow_run:
+    # Match the `name:` in apply.yml
+    workflows: ["Terraform apply"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: reachability-assertion
+  cancel-in-progress: false
+
+jobs:
+  assert:
+    # Run only if the apply succeeded, or if started by hand.
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      ARM_CLIENT_ID:       ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID:       ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC:        true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.0
+          terraform_wrapper: false
+
+      - uses: azure/login@v2
+        with:
+          client-id:       ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Init (to read outputs from state)
+        working-directory: infra/envs/lab
+        run: terraform init -input=false
+
+      - name: Assert
+        run: bash infra/assertions/reachability.sh | tee "$RUNNER_TEMP/assert.txt"
+
+      - name: Publish result to job summary
+        if: always()
+        run: |
+          {
+            echo '## Reachability assertion'
+            echo ''
+            echo '```'
+            cat "$RUNNER_TEMP/assert.txt" 2>/dev/null || echo '(no assertion output)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
