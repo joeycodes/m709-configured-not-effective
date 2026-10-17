@@ -1,0 +1,108 @@
+### 2026-10-16 (UTC-6)
+### test: the post-deployment reachability assertion (infra/assertions/reachability.sh, workflow "Reachability assertion") passes on a correctly deployed lab, fails on the tier whose routes stopped taking effect after an out-of-band change, and passes again once Terraform has repaired it
+### note: the assertion checks what the plan-time rules cannot (ADR D20, rule 3d deferred to W6): for each tier NIC, the effective route table must hold 0.0.0.0/0 and 10.100.0.0/14 as User routes to VirtualAppliance lab.nva_ip (10.100.2.4), Active, and Azure's system route 0.0.0.0/0 -> Internet must be Invalid. Nine checks in all. The expected next hop is read from infra/policy/lab.rego, the same standard the Rego rules use; resource names come from Terraform outputs; the routes come from Azure.
+### note: the script exits 0 when every check passes and 1 when any fails. A failure to query (az, terraform or jq returning an error) also stops it, through die, with exit 1; see (f).
+### note: the workflow runs after every successful "Terraform apply" (workflow_run) and on demand (workflow_dispatch), on main at 84dabc6 (#35). Logs fetched with the GitHub CLI or copied from the Actions step log; tenant and subscription lines of the step header are omitted.
+
+### (a) before CI: the script against the deployed lab, from the author's workstation
+### cmd: bash infra/assertions/reachability.sh; echo "exit=$?"
+
+PASS: vm-cne-tier0 has a single active user route for 0.0.0.0/0 via the NVA
+PASS: vm-cne-tier0 has a single active user route for 10.100.0.0/14 via the NVA
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier0.
+PASS: vm-cne-tier1 has a single active user route for 0.0.0.0/0 via the NVA
+PASS: vm-cne-tier1 has a single active user route for 10.100.0.0/14 via the NVA
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier1.
+PASS: vm-cne-tier2 has a single active user route for 0.0.0.0/0 via the NVA
+PASS: vm-cne-tier2 has a single active user route for 10.100.0.0/14 via the NVA
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier2.
+exit=0
+
+### (a') the same, with the standard temporarily overridden in the script (expected_nva="10.100.2.5"), to show the failure path: every user-route check fails, the system-route checks, which do not compare the next hop, still pass, and the exit code is 1. The override was removed before commit.
+
+FAIL: vm-cne-tier0 does not have the expected route for 0.0.0.0/0 via the NVA, found 0.
+FAIL: vm-cne-tier0 does not have the expected route for 10.100.0.0/14 via the NVA, found 0.
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier0.
+FAIL: vm-cne-tier1 does not have the expected route for 0.0.0.0/0 via the NVA, found 0.
+FAIL: vm-cne-tier1 does not have the expected route for 10.100.0.0/14 via the NVA, found 0.
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier1.
+FAIL: vm-cne-tier2 does not have the expected route for 0.0.0.0/0 via the NVA, found 0.
+FAIL: vm-cne-tier2 does not have the expected route for 10.100.0.0/14 via the NVA, found 0.
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier2.
+exit=1
+
+### (b) Q1: lab built from main; the assertion starts on its own after the apply
+### runs: Terraform apply 39000889477 (workflow_dispatch, 4m30s) -> Reachability assertion 39001190432 (workflow_run), success
+
+PASS: vm-cne-tier0 has a single active user route for 0.0.0.0/0 via the NVA
+PASS: vm-cne-tier0 has a single active user route for 10.100.0.0/14 via the NVA
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier0.
+PASS: vm-cne-tier1 has a single active user route for 0.0.0.0/0 via the NVA
+PASS: vm-cne-tier1 has a single active user route for 10.100.0.0/14 via the NVA
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier1.
+PASS: vm-cne-tier2 has a single active user route for 0.0.0.0/0 via the NVA
+PASS: vm-cne-tier2 has a single active user route for 10.100.0.0/14 via the NVA
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier2.
+
+### (c) Q2: drift. The tier-1 subnet is detached from its route table outside Terraform, then the assertion is run by hand
+### note: nothing in the repository changed, so no plan check could see this; the route table still exists, with both routes, and simply no longer applies to the subnet. Expected before the run: the three tier-1 checks fail, tier 0 and tier 2 pass, exit 1.
+### cmd: az network vnet subnet update -g rg-cne-lab --vnet-name vnet-cne-tier1 -n snet-tier1-workload --remove routeTable
+### runs: Reachability assertion 39001347241 (workflow_dispatch). Attempt 1 did not reach a check, see (f); attempt 2:
+
+PASS: vm-cne-tier0 has a single active user route for 0.0.0.0/0 via the NVA
+PASS: vm-cne-tier0 has a single active user route for 10.100.0.0/14 via the NVA
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier0.
+FAIL: vm-cne-tier1 does not have the expected route for 0.0.0.0/0 via the NVA, found 0.
+FAIL: vm-cne-tier1 does not have the expected route for 10.100.0.0/14 via the NVA, found 0.
+FAIL: found illegal Azure implemented default route for vm-cne-tier1: 0.
+PASS: vm-cne-tier2 has a single active user route for 0.0.0.0/0 via the NVA
+PASS: vm-cne-tier2 has a single active user route for 10.100.0.0/14 via the NVA
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier2.
+Error: Process completed with exit code 1.
+
+### note: the third tier-1 line means the system route 0.0.0.0/0 -> Internet was no longer Invalid: with the user routes gone, tier 1 was sending its internet-bound traffic straight out, past the NVA. Tier 0 and tier 2 were unaffected and are reported as such.
+
+### (d) Q3: repair. Terraform apply run by hand; it finds the association missing and recreates it
+### runs: Terraform apply 39001719468 (workflow_dispatch, 58s); plan excerpt:
+
+ # azurerm_subnet_route_table_association.spoke["tier1"] will be created
++ resource "azurerm_subnet_route_table_association" "spoke" {
++ id = (known after apply)
++ route_table_id = "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/routeTables/rt-cne-tier1"
++ subnet_id = "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier1/subnets/snet-tier1-workload"
+ }
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+### runs: Reachability assertion 39001780862 (workflow_run). Attempt 1 did not reach a check, see (f); attempt 2:
+### cmd: gh run view 39001780862 --log | grep -E "PASS|FAIL|ERROR"
+
+assert	Assert	2026-10-17T04:17:24.0792225Z PASS: vm-cne-tier0 has a single active user route for 0.0.0.0/0 via the NVA
+assert	Assert	2026-10-17T04:17:24.0827266Z PASS: vm-cne-tier0 has a single active user route for 10.100.0.0/14 via the NVA
+assert	Assert	2026-10-17T04:17:24.0859968Z PASS: illegal Azure implemented default route is invalid for vm-cne-tier0.
+assert	Assert	2026-10-17T04:17:27.3057108Z PASS: vm-cne-tier1 has a single active user route for 0.0.0.0/0 via the NVA
+assert	Assert	2026-10-17T04:17:27.3091253Z PASS: vm-cne-tier1 has a single active user route for 10.100.0.0/14 via the NVA
+assert	Assert	2026-10-17T04:17:27.3124170Z PASS: illegal Azure implemented default route is invalid for vm-cne-tier1.
+assert	Assert	2026-10-17T04:17:30.5441590Z PASS: vm-cne-tier2 has a single active user route for 0.0.0.0/0 via the NVA
+assert	Assert	2026-10-17T04:17:30.5474597Z PASS: vm-cne-tier2 has a single active user route for 10.100.0.0/14 via the NVA
+assert	Assert	2026-10-17T04:17:30.5507367Z PASS: illegal Azure implemented default route is invalid for vm-cne-tier2.
+
+### (e) the drift, its detection and its repair, side by side
+
+### | step | configuration      | plan-time rules | effective routes, tier 1          | assertion            |
+### | Q1   | as committed       | pass            | via the NVA                       | 9/9 pass             |
+### | Q2   | unchanged          | (not run)       | 0.0.0.0/0 -> Internet, Active     | tier 1: 3 fail       |
+### | Q3   | unchanged; applied | pass            | via the NVA                       | 9/9 pass             |
+
+### (f) two runs ended before any check, on a fault in the Azure CLI, not in the lab
+### note: in Q2 attempt 1 and Q3 attempt 1, the first query (az network nic show-effective-route-table, tier 0) failed inside the Azure CLI with a Python import deadlock while its poller loaded its HTTP library. The script stopped on die, as written, and no check was reported. A rerun of the same commit passed the query both times. Two of the five CI attempts so far hit it; it has not occurred on the workstation.
+### cmd: gh run view 39001780862 --log | grep -E "PASS|FAIL|ERROR|Deadlock"   (attempt 1)
+
+assert	Assert	2026-10-17T04:14:20.8547787Z ERROR: The command failed with an unexpected error. Here is the traceback:
+assert	Assert	2026-10-17T04:14:20.8575939Z ERROR: deadlock detected by _ModuleLock('requests.structures') at 140341206115664
+assert	Assert	2026-10-17T04:14:20.8618888Z _frozen_importlib._DeadlockError: deadlock detected by _ModuleLock('requests.structures') at 140341206115664
+assert	Assert	2026-10-17T04:14:21.0188725Z ERROR: Failed to retrieve effective route table for vm-cne-tier0
+
+### note: as written, a query that could not run and a route that is wrong both end the job with exit code 1 and the same red mark. Q3's automatic run was red on a correctly repaired lab. A check that turns red on its own tooling half the time trains its reader to ignore red. Follow-up: die exits 2 rather than 1, so "could not check" is distinct from "checked and failed", and each az query is retried a bounded number of times before die.
+
+### result
+### A change made outside Terraform left every plan check green and took tier 1's internet egress off the NVA; the assertion named the tier and the three properties that broke, and passed again once apply had restored the association. The same runs show that a detective control is only as reliable as the tools it runs on: without distinguishing a failed query from a failed check, its alarms cannot be read at face value.
