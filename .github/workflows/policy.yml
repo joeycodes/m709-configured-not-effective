@@ -70,7 +70,7 @@ jobs:
           cd "$RUNNER_TEMP"
           curl -sSfL -O "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
           sha256sum -c <<< "${CONFTEST_SHA256}  conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
-          tar -xzf "conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" -C $RUNNER_TEMP/bin conftest
+          tar -xzf "conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" -C "$RUNNER_TEMP/bin" conftest
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/bin/conftest" --version
 
