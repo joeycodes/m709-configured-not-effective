@@ -8,7 +8,7 @@
 #
 # IMPORTANT: a red check here blocks nothing on its own. Branch protection
 # on main is what turns this from a report into a gate -- see
-# docs/adr/ADR-000-bootstrap.md.
+# docs/adr/ADR-013-policy-gate-negative-test.md.
 
 name: Policy
 
