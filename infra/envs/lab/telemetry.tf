@@ -81,7 +81,7 @@ resource "azurerm_virtual_machine_extension" "nva_ama" {
   type_handler_version       = "1.0"
   auto_upgrade_minor_version = true
   automatic_upgrade_enabled  = true
-  tags                       = local.common_tags
+  tags = merge(local.common_tags, { "zone" = "hub" })
 }
 
 # Bind the NVA to the DCR: this is what tells the agent what to collect
