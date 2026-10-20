@@ -46,5 +46,22 @@ resource "azurerm_network_watcher_flow_log" "vnet" {
     interval_in_minutes   = 10
   }
 
+  # Create the flow logs only after the network is finished. Azure allows one
+  # change at a time on a VNet. Terraform already queues subnet, association
+  # and peering changes so they do not clash, but it does not queue flow logs.
+  # Without this, a flow log and a subnet hit the same VNet together on a fresh
+  # build and the subnet fails with 409 AnotherOperationInProgress.
+  depends_on = [
+    azurerm_subnet.reserved,
+    azurerm_subnet_network_security_group_association.workload,
+    azurerm_subnet_route_table_association.spoke,
+    azurerm_subnet.onprem,
+    azurerm_subnet_network_security_group_association.onprem,
+    azurerm_subnet_route_table_association.onprem-srv,
+    azurerm_virtual_network_peering.hub_to_spoke,
+    azurerm_virtual_network_peering.spoke_to_hub,
+    azurerm_subnet.workload,
+  ]
+
   tags = merge(local.common_tags, { "zone" = each.key })
 }
