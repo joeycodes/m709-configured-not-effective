@@ -13,7 +13,7 @@ resource "azurerm_monitor_data_collection_rule" "nva_syslog" {
       name           = "kern-syslog"
       streams        = ["Microsoft-Syslog"]
       facility_names = ["kern"]
-      log_levels     = [
+      log_levels = [
         "Warning",
         "Error",
         "Critical",
