@@ -10,8 +10,6 @@ resource "azurerm_storage_account" "flowlogs" {
   #checkov:skip=CKV2_AZURE_1:Microsoft-managed keys with infrastructure encryption; customer-managed keys address a threat outside this project's model
   #checkov:skip=CKV_AZURE_33:Queue service is not used by this account
   #checkov:skip=CKV_AZURE_206:LRS by design. Raw flow logs are processed into the workspace within minutes and deleted after 30 days; losing this region's copy loses nothing the workspace does not already hold. ADR D21
-  #checkov:skip=CKV2_AZURE_40:TEMPORARY diagnostic (2026-10-20). Shared key re-enabled to test whether Traffic Analytics needs key access to read raw flow logs. Revert after the test, ADR D21
-  #checkov:skip=CKV2_AZURE_41:TEMPORARY diagnostic (2026-10-20). Follows from re-enabling shared key; left unset so the test changes one variable. Revert with CKV2_AZURE_40, ADR D21
   name                              = "sacneflowlogs"
   resource_group_name               = azurerm_resource_group.observability.name
   location                          = azurerm_resource_group.observability.location
@@ -19,7 +17,7 @@ resource "azurerm_storage_account" "flowlogs" {
   account_replication_type          = "LRS"
   min_tls_version                   = "TLS1_2"
   https_traffic_only_enabled        = true
-  shared_access_key_enabled         = true
+  shared_access_key_enabled         = false
   default_to_oauth_authentication   = true
   allow_nested_items_to_be_public   = false
   infrastructure_encryption_enabled = true
