@@ -65,3 +65,28 @@ resource "azurerm_network_watcher_flow_log" "vnet" {
 
   tags = merge(local.common_tags, { "zone" = each.key })
 }
+
+# Look up the DCR in the observability layer (same pattern as the flow-log account)
+data "azurerm_monitor_data_collection_rule" "nva_syslog" {
+  name                = var.observability_dcr
+  resource_group_name = var.observability_resource_group
+}
+
+# Azure Monitor Agent on the NVA: the process that reads syslog and sends it on
+resource "azurerm_virtual_machine_extension" "nva_ama" {
+  name                       = "AzureMonitorLinuxAgent"
+  virtual_machine_id         = azurerm_linux_virtual_machine.hub.id
+  publisher                  = "Microsoft.Azure.Monitor"
+  type                       = "AzureMonitorLinuxAgent"
+  type_handler_version       = "1.0"
+  auto_upgrade_minor_version = true
+  automatic_upgrade_enabled  = true
+  tags                       = merge(local.common_tags, { "zone" = "hub" })
+}
+
+# Bind the NVA to the DCR: this is what tells the agent what to collect
+resource "azurerm_monitor_data_collection_rule_association" "nva_syslog" {
+  name                    = "dcra-cne-nva-syslog"
+  target_resource_id      = azurerm_linux_virtual_machine.hub.id
+  data_collection_rule_id = data.azurerm_monitor_data_collection_rule.nva_syslog.id
+}
