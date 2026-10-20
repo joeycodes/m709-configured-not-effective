@@ -88,3 +88,9 @@ variable "observability_workspace" {
   description = "Name of the Log Analytics workspace in the observability layer. Must match infra/envs/observability/workspace.tf."
   default     = "log-cne-observability"
 }
+
+variable "observability_dcr" {
+  type        = string
+  description = "Name of the data collection rule in the observability layer. Must match infra/envs/observability/dcr.tf."
+  default     = "dcr-cne-nva-syslog"
+}
