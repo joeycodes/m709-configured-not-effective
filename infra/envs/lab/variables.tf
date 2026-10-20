@@ -70,3 +70,21 @@ variable "srv_vm_size" {
   description = "Size of the onprem server VM."
   default     = "Standard_D2ls_v6"
 }
+
+variable "observability_resource_group" {
+  type        = string
+  description = "Name of the observability layer resource group. Must match infra/envs/observability/main.tf."
+  default     = "rg-cne-observability"
+}
+
+variable "flowlogs_storage_account" {
+  type        = string
+  description = "Name of the flow logs storage account in the observability layer. Must match infra/envs/observability/flowlogs.tf."
+  default     = "sacneflowlogs"
+}
+
+variable "observability_workspace" {
+  type        = string
+  description = "Name of the Log Analytics workspace in the observability layer. Must match infra/envs/observability/workspace.tf."
+  default     = "log-cne-observability"
+}
