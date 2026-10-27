@@ -1,0 +1,167 @@
+### 2026-10-27 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
+### test: detection (a) stays silent while tier 2 to tier 0 is blocked, stays silent while only one of the two blocking layers is open, and raises an incident once both are open (ADR D21; scenario #1's detection)
+### note: this is the rule's own synthetic trigger, made to show that it fires. It is not a run of scenario #1, which is pre-registered and run in M3.
+### note: tier 2 to tier 0 is blocked twice: on the NVA (nftables, fwd-t2t0-drop, R5) and on the tier-0 NSG (DenyTier2ToTier0, priority 200, inbound). VNet flow logs record a connection at every NIC it crosses (R4 (e)); a row at the tier-2 NIC or the NVA's inbound side says Allowed even when the NVA then drops the packet. Only an Allowed row at the tier-0 NIC means the packet arrived, so the rule selects on that.
+### note: rule by #51 (6a0da77), Terraform apply (observability) 40589205308, 15:43:54-15:44:46. Lab from #50. tier 2 10.103.0.4, tier 0 10.101.0.4. Tests use TCP 22: ICMP from tier 1 to tier 0 that day left no NTANetAnalytics row, so ping is not used as a signal.
+
+### (a) the rule as deployed
+### file: infra/detections/t2_to_t0_accepted.kql
+
+NTANetAnalytics
+| where SubType == "FlowLog"
+| where TargetResourceId endswith "/vnet-cne-tier0"
+| where FlowDirection == "Inbound"
+| where FlowStatus == "Allowed"
+| where ipv4_is_in_range(SrcIp, "10.103.0.0/16")
+| summarize Count = count(), Flows = sum(AllowedInFlows), FirstSeen = min(FlowStartTime), LastSeen = max(FlowEndTime) by SrcIp, DestIp, DestPort, L4Protocol
+
+### file: infra/envs/observability/detections.tf (azurerm_sentinel_alert_rule_scheduled): severity High; query_frequency PT10M; query_period PT30M; trigger GreaterThan 0; tactics LateralMovement; techniques T1021.
+### note: query_period is three times query_frequency on purpose. TimeGenerated in NTANetAnalytics is when Traffic Analytics processed the flow, minutes after it happened. With a period equal to the frequency, a row that lands just before a run's cutoff but after that run has read the table falls outside the next run's window and is never seen, with no error. (f) shows a 14-minute gap between connection and TimeGenerated.
+
+### (b) the query checked before deployment (portal, workspace Logs, last 24 hours)
+### note: a query that returns nothing proves nothing until it has been seen to return something. Source range set to tier 1 (10.102.0.0/16), whose SSH to tier 0 is allowed:
+
+SrcIp       DestIp      DestPort  L4Protocol  Count  Flows  FirstSeen [UTC]                LastSeen [UTC]
+10.102.0.4  10.101.0.4  22        TCP         3      6      10/27/2026, 4:27:42.042 AM     10/27/2026, 8:25:28.003 PM
+
+### note: 6 flows = the three connections of R4 plus the three of R5. With the range set back to tier 2 (10.103.0.0/16): "No results found from the last 24 hours."
+
+### (c) step 1, baseline: both layers block
+### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-tier2 --command-id RunShellScript --scripts 'date -u; for i in 1 2 3; do timeout 3 bash -c "</dev/tcp/10.101.0.4/22" && echo open || echo closed; done'
+
+Tue Oct 27 21:51:12 UTC 2026
+closed
+closed
+closed
+
+### note: the NVA's fwd-t2t0-drop counter read 21 just after, against 12 from R5: 9 more packets, three SYNs per attempt. Dropped at the NVA; nothing reaches the tier-0 NIC.
+
+### (d) step 2, the NVA layer opened, the NSG still in place
+### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts 'nft insert rule inet filter forward ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter accept; nft list chain inet filter forward'
+
+table inet filter {
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter packets 0 bytes 0 accept
+		ct state established,related counter packets 25013 bytes 30454371 accept
+		ct state invalid counter packets 0 bytes 0 drop
+		ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter packets 21 bytes 1332 log prefix "fwd-t2t0-drop: " drop
+		ip saddr @allowed_v4 ct state new log prefix "fwd-accept: " counter packets 26 bytes 1584 accept
+		counter packets 0 bytes 0 log prefix "fwd-drop: " drop
+	}
+}
+
+### note: a runtime change on the NVA only; /etc/nftables.conf and the repository are untouched.
+### cmd: the tier-2 connection of (c) again
+
+Tue Oct 27 21:53:03 UTC 2026
+closed
+closed
+closed
+
+### cmd: nft list chain inet filter forward | head -4   (on the NVA, after)
+
+		ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter packets 9 bytes 540 accept
+
+### note: the NVA forwarded the 9 SYNs this time; the drop counter stayed at 21.
+
+### (e) the flow logs for (c) and (d): where each connection was recorded
+### cmd: NTANetAnalytics | where SubType == 'FlowLog' and SrcIp == '10.103.0.4' and DestIp == '10.101.0.4' | summarize flows = sum(AllowedInFlows + DeniedInFlows + AllowedOutFlows + DeniedOutFlows), firstStart = min(FlowStartTime) by FlowLog = tostring(split(FlowLogResourceId, '/')[-1]), FlowDirection, FlowStatus, AclRule | order by firstStart asc   (about 16:08)
+
+AclRule                FlowDirection  FlowLog       FlowStatus  FirstStart                Flows
+allowforwardedfromlab  Inbound        fl-cne-hub    Allowed     2026-10-27T20:26:18.028Z  9
+allowvnetoutbound      Outbound       fl-cne-tier2  Allowed     2026-10-27T20:26:18.028Z  9
+allowvnetoutbound      Outbound       fl-cne-hub    Allowed     2026-10-27T21:53:02.097Z  3
+denytier2totier0       Inbound        fl-cne-tier0  Denied      2026-10-27T21:53:02.098Z  9
+
+### note: tier 2 out and NVA in: 9 = three connections each from R5 (14:26), step 1 and step 2. NVA out and tier 0 in: step 2 only. In step 1 (and R5) the connection stops inside the NVA: no NVA-out row, no tier-0 row. In step 2 it crosses the NVA and is refused at the tier-0 NIC by DenyTier2ToTier0. The second layer held while the first was open.
+### note: the same three connections count 3 at the NVA's outbound side and 9 denied at tier 0. Each retransmitted SYN appears to count as a new flow where the NSG denies, since no connection state is kept for refused packets; 9 also matches the NVA counter. Observed, not documented.
+### note: the rule's query returned no row here (no Allowed at tier 0), and no alert came from any run before 22:29:46 UTC; see (g).
+
+### (f) step 3, both layers open
+### cmd: az network nsg rule update -g rg-cne-lab --nsg-name nsg-tier0-workload -n DenyTier2ToTier0 --access Allow   (output condensed)
+
+"access": "Allow", "direction": "Inbound", "priority": 200, "sourceAddressPrefix": "10.103.0.0/16", "destinationAddressPrefix": "10.101.0.0/16", "provisioningState": "Succeeded"
+
+### cmd: the tier-2 connection again
+
+Tue Oct 27 22:09:26 UTC 2026
+open
+open
+open
+
+### cmd: the query of (e) with | where FlowStartTime > datetime(2026-10-27T22:05:00Z), once all four rows had arrived
+
+AclRule                FlowDirection  FlowLog       FlowStatus  Flows
+allowforwardedfromlab  Inbound        fl-cne-hub    Allowed     3
+allowvnetoutbound      Outbound       fl-cne-hub    Allowed     3
+allowvnetoutbound      Outbound       fl-cne-tier2  Allowed     3
+denytier2totier0       Inbound        fl-cne-tier0  Allowed     3
+
+### note: the tier-0 row is Allowed; its AclRule still reads denytier2totier0 because only the rule's access was changed, not its name. Rows arrived per flow log, the hub's first and the tier-0 one last.
+### cmd: the rule's conditions with project instead of summarize
+
+AclRule           AllowedInFlows  DestIp      DestPort  FlowStartTime             SrcIp       TimeGenerated
+denytier2totier0  3               10.101.0.4  22        2026-10-27T22:09:26.041Z  10.103.0.4  2026-10-27T22:23:19.7520508Z
+
+### (g) the alert and the incident
+### cmd: SecurityAlert | where TimeGenerated > ago(2h) | where AlertName == 'T2 to T0 Accepted' | project TimeGenerated, StartTime, EndTime, AlertSeverity, SystemAlertId
+
+AlertSeverity  EndTime                       StartTime                     SystemAlertId                         TimeGenerated
+High           2026-10-27T22:29:46.0890554Z  2026-10-27T21:59:46.0890554Z  74fff018-1e74-a0c1-20e5-3146ed24b357  2026-10-27T22:34:53.8567875Z
+High           2026-10-27T22:39:46.0890554Z  2026-10-27T22:09:46.0890554Z  a8035c36-ee7b-e28b-7984-e3c2e36cf43c  2026-10-27T22:44:49.1572516Z
+
+### cmd: SecurityIncident | where TimeGenerated > ago(2h) | where Title == 'T2 to T0 Accepted' | project TimeGenerated, IncidentNumber, Title, Severity, Status
+
+IncidentNumber  Severity  Status  TimeGenerated                 Title
+2               High      New     2026-10-27T22:45:07.6Z        T2 to T0 Accepted
+1               High      New     2026-10-27T22:35:10.2666667Z  T2 to T0 Accepted
+
+### note: StartTime/EndTime of an alert are the window the run queried, so the rule runs at :x9:46; each window is 30 minutes. The row with TimeGenerated 22:23:19 lies in the windows of the 22:29:46, 22:39:46 and 22:49:46 runs, hence one alert and one incident per run; a third was expected and not checked. Duplicates are the cost of the overlapping window; alert grouping or suppression would remove them and is not configured.
+### note: in the Microsoft Defender portal (Incidents), both incidents appear only after removing the queue's "Priority score: 15-100" filter: each scored 2 (Defender scores incidents 0-100 and greys those below 15). The rule maps no entities, which likely keeps the score low. An analyst on the default view would not have seen them. Screenshot: S2-defender-incidents.png.
+### timeline (UTC-6):
+
+### | 16:09:26 | connection accepted at tier 0 (FlowStartTime)              | +0        |
+### | 16:23:19 | row written to NTANetAnalytics (TimeGenerated)             | +13m53s   |
+### | 16:29:46 | first rule run whose window holds the row                  | +20m20s   |
+### | 16:34:53 | alert written to SecurityAlert                             | +25m27s   |
+### | 16:35:10 | incident 1 created                                         | +25m44s   |
+
+### note: about 14 of the 25 minutes are Traffic Analytics' processing; up to 10 are the rule's schedule; about 5 are alert creation. This is the floor on time to detect for flow-based rules that ADR D21 anticipated, measured once; scenario #1's pre-registration uses it.
+
+### (h) restore
+### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts 'nft -f /etc/nftables.conf; nft list chain inet filter forward | head -6'
+
+table inet filter {
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		ct state established,related counter packets 0 bytes 0 accept
+		ct state invalid counter packets 0 bytes 0 drop
+		ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter packets 0 bytes 0 log prefix "fwd-t2t0-drop: " drop
+
+### note: the baseline file begins with flush ruleset, so reloading it removes the runtime rule; counters restart at 0.
+### runs: Terraform apply 40596945544 (workflow_dispatch, 6a0da77), 16:43:16-16:44:14, success
+### cmd: gh run view 40596945544 --log | grep -E "will be updated|access|Plan:|Apply complete"   (ANSI codes and log prefixes removed)
+
+  # azurerm_network_security_rule.tier2-tier0 will be updated in-place
+      ~ access                                     = "Allow" -> "Deny"
+Plan: 0 to add, 1 to change, 0 to destroy.
+Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
+
+### note: Terraform sees the NSG change, because the NSG rule is in state; it cannot see the NVA change, because the runtime ruleset is not a Terraform resource: cloud-init writes it once, at first boot. Had the NVA not been reloaded by hand, a green apply would have left layer 1 open.
+### runs: Reachability assertion 40597070139 (after that apply), failure: the Azure CLI deadlock of Q1 (g) on the first query, not a route failure.
+### cmd: gh run view 40597070139 --log | grep -E "PASS|FAIL|deadlock|Failed to retrieve"
+
+2026-10-27T22:44:55.2918725Z ERROR: deadlock detected by _ModuleLock('requests.structures') at 140087903694032
+2026-10-27T22:44:55.2957018Z _frozen_importlib._DeadlockError: deadlock detected by _ModuleLock('requests.structures') at 140087903694032
+2026-10-27T22:44:55.4578012Z ERROR: Failed to retrieve effective route table for vm-cne-tier0
+
+### cmd: the tier-2 connection, after the apply had finished (16:44:14)
+
+Tue Oct 27 22:44:52 UTC 2026
+closed
+closed
+closed
+
+### result
+### Detection (a) works end to end, from code to incident: deployed by the pipeline, silent while either layer blocked tier 2 to tier 0, and raising an incident 25 minutes after the connection once both were open. The steps also show the two layers separately: the NSG held while the NVA was open. And they show where Terraform's view stops: it repaired the NSG it manages and could not see the NVA rule changed at runtime.

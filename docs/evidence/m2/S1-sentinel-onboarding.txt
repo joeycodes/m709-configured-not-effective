@@ -1,0 +1,18 @@
+### 2026-10-27 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
+### test: Microsoft Sentinel is enabled on the observability workspace by the pipeline, and the 31-day free trial starts with it (ADR D21)
+### note: infra/envs/observability/sentinel.tf, one resource (azurerm_sentinel_log_analytics_workspace_onboarding) on log-cne-observability. Sentinel holds no data of its own; its analytics rules query the workspace's tables. Per Microsoft's billing page, enabling Sentinel on a workspace waives Log Analytics ingestion and Sentinel analysis up to 10 GB/day for 31 days (20 workspaces per tenant); there is no separate trial switch.
+### note: Microsoft.SecurityInsights checked registered before the merge.
+
+### (a) the deployment
+### runs: #49 (171d3e2), Terraform apply (observability) 40573661473, 13:57:01-13:58:17
+
+### (b) the trial, as Sentinel reports it (Azure portal > Microsoft Sentinel > News & guides > Free trial; screenshot S1-sentinel-onboarding.png)
+
+Your free trial is active from 10/27/2026 to 11/27/2026 at 11:59:59 PM UTC
+You have 31 days remaining in your free trial.
+During the trial, up to 10 GB/day are free for both Microsoft Sentinel and Log Analytics. Data beyond the 10 GB/day included quantity will be billed.
+
+### note: the trial ends on its own and billing moves to pay-as-you-go without a prompt. Sentinel stays on through the final run (Week 12) and the demonstration recording; it is removed in the final teardown. The subscription's two budgets (budget-cne-monthly 25.00, budget-cne-payg 35.50, USD) stood at 14.39 evaluated spend, 17.47 forecast, on the day.
+
+### result
+### Sentinel is on, deployed as code; the trial runs to 2026-11-27 23:59:59 UTC.
