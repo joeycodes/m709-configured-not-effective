@@ -121,3 +121,119 @@ Success  MICROSOFT.STORAGE/STORAGEACCOUNTS/LISTKEYS/ACTION           2026-10-20T
 
 ### result
 ### Stage 1 is effective: the flow logs write to the account steadily, with shared key disabled. Stage 2 is configured but not effective: Traffic Analytics is enabled on the flow log with the right workspace, the resource provider is registered, yet in over two hours it read nothing from the account, retrieved no key and wrote no row. Excluded: the flow-log configuration, the provider registration, shared key on the account (experiment (e)); local auth on the workspace is unlikely by (f). Not yet explained: why the processing never starts. The raw logs of this session sit in the account until its lifecycle rule removes them (30 days).
+
+
+### (g) 2026-10-26 (UTC-6): rerun on a fresh build, configuration unchanged; times in ### lines UTC-6, captured output UTC
+### note: the session ran 21:35 to 23:00. Nothing under infra/ changed since (f): main at a19967f. Today's date in UTC is 2026-10-27, which is what the outputs below show.
+
+### (g1) the build: no 409 this time
+### runs: Terraform apply 40445630467 (workflow_dispatch, a19967f), 21:42:09-21:47:23, success on attempt 1. A second dispatch (40446073563, 21:46:57-21:48:17) queued behind it on the state lock and finished after it. Reachability assertion 40446116687 failed on the Azure CLI deadlock (Q1 (g)); 40446196892 passed 9/9.
+### note: this is the first build from nothing since #41. The flow logs were created after the subnets, associations and peerings, and no resource hit 409. The open point in (a) is closed.
+
+### (g2) the NWTA resources from 2026-10-20: created at the first flow log, removed most of a day after the last was destroyed
+### note: the Traffic Analytics FAQ says Traffic Analytics "creates and manages" a data collection rule and endpoint, prefixed NWTA, in the workspace's resource group. On 2026-10-21 they were still there after the nightly destroy; by today they were gone. The Activity Log shows when.
+### cmd: AzureActivity | where TimeGenerated > datetime(2026-10-20T21:00:00Z) | where OperationNameValue has_any ('DATACOLLECTIONRULES', 'DATACOLLECTIONENDPOINTS') | project TimeGenerated, OperationNameValue, ActivityStatusValue, Resource = tostring(split(_ResourceId, '/')[-1]) | order by TimeGenerated asc
+
+ActivityStatusValue  OperationNameValue                                 Resource                                         TimeGenerated
+Start                MICROSOFT.INSIGHTS/DATACOLLECTIONENDPOINTS/WRITE   nwta-eb7db6d2-a451-47ed-b547-4dd4f982r4xl        2026-10-20T21:37:00.316666Z
+Success              MICROSOFT.INSIGHTS/DATACOLLECTIONENDPOINTS/WRITE   nwta-eb7db6d2-a451-47ed-b547-4dd4f982r4xl        2026-10-20T21:37:02.0198346Z
+Start                MICROSOFT.INSIGHTS/DATACOLLECTIONRULES/WRITE       nwta-eb7db6d2-a451-47ed-b547-4dd4f90b4ea1e44du2  2026-10-20T21:37:02.051086Z
+Success              MICROSOFT.INSIGHTS/DATACOLLECTIONRULES/WRITE       nwta-eb7db6d2-a451-47ed-b547-4dd4f90b4ea1e44du2  2026-10-20T21:37:04.3011474Z
+Success              MICROSOFT.INSIGHTS/DATACOLLECTIONENDPOINTS/WRITE   nwta-eb7db6d2-a451-47ed-b547-4dd4f982r4xl        2026-10-20T21:47:00.6033163Z
+Success              MICROSOFT.INSIGHTS/DATACOLLECTIONRULES/WRITE       nwta-eb7db6d2-a451-47ed-b547-4dd4f90b4ea1e44du2  2026-10-20T21:47:04.2452768Z
+Start                MICROSOFT.INSIGHTS/DATACOLLECTIONRULES/WRITE       dcr-cne-nva-syslog                               2026-10-20T22:14:25.2482714Z
+Success              MICROSOFT.INSIGHTS/DATACOLLECTIONRULES/WRITE       dcr-cne-nva-syslog                               2026-10-20T22:14:27.0920373Z
+Success              MICROSOFT.INSIGHTS/DATACOLLECTIONRULES/WRITE       dcr-cne-nva-syslog                               2026-10-20T22:24:27.679205Z
+Start                MICROSOFT.INSIGHTS/DATACOLLECTIONRULES/DELETE      nwta-eb7db6d2-a451-47ed-b547-4dd4f90b4ea1e44du2  2026-10-21T19:00:50.7110967Z
+Success              MICROSOFT.INSIGHTS/DATACOLLECTIONRULES/DELETE      nwta-eb7db6d2-a451-47ed-b547-4dd4f90b4ea1e44du2  2026-10-21T19:00:52.2580792Z
+Start                MICROSOFT.INSIGHTS/DATACOLLECTIONENDPOINTS/DELETE  nwta-eb7db6d2-a451-47ed-b547-4dd4f982r4xl        2026-10-21T19:00:52.4295027Z
+Success              MICROSOFT.INSIGHTS/DATACOLLECTIONENDPOINTS/DELETE  nwta-eb7db6d2-a451-47ed-b547-4dd4f982r4xl        2026-10-21T19:00:54.0701314Z
+Success              MICROSOFT.INSIGHTS/DATACOLLECTIONRULES/DELETE      nwta-eb7db6d2-a451-47ed-b547-4dd4f90b4ea1e44du2  2026-10-21T19:10:51.6688196Z
+Success              MICROSOFT.INSIGHTS/DATACOLLECTIONENDPOINTS/DELETE  nwta-eb7db6d2-a451-47ed-b547-4dd4f982r4xl        2026-10-21T19:10:52.7168543Z
+
+### note: in UTC-6: created 2026-10-20 15:37, during apply attempt 1 of (a), about a minute after the flow logs; written again at 15:47, ten minutes later; deleted 2026-10-21 13:00 and again at 13:10, about 18.5 hours after the nightly destroy (18:35 the evening before). The ten-minute spacing matches the processing interval set on the flow logs. The NWTA names carry the workspace id, so there is one pair per workspace, shared by every flow log that sends to it.
+### note: this corrects (f) and the result of 2026-10-20. Traffic Analytics was running on 2026-10-20: its management side created, refreshed and later removed its DCR and DCE on schedule. What never ran was its data side: no read of the account, no row ingested. (f) inferred "not started" from the absence of key retrievals; the NWTA writes, which (f) did not query, show otherwise. The recreation time of the pair today was not queried.
+
+### (g3) today, without any change: every stage works
+### cmd (about 22:05): SA Transactions by ApiName at 5-minute intervals from 03:40 UTC, as in (c); all-zero APIs left out
+
+Timestamp             PutBlock  PutBlockList  CreateContainer  ListBlobs  GetBlob  GetBlobProperties  GetBlockList
+2026-10-27T03:40:00Z         0             0                0          0        0                  0             0
+2026-10-27T03:45:00Z         4             2                1          0        0                  0             0
+2026-10-27T03:50:00Z        18            12                2          8        7                  4             2
+2026-10-27T03:55:00Z        11            11                0          0        0                  0             0
+2026-10-27T04:00:00Z         8             6                0          8       17                  8             4
+
+### note: reads now come in on a ten-minute cycle (21:50 and 22:00 UTC-6), which 2026-10-20 never showed.
+### cmd: metrics of the NWTA DCR (az monitor metrics list --resource "$DCR_ID" ..., the DCR found by name prefix in rg-cne-observability). Its metrics: ApiCallReceived_Count, RowsReceived_Count, RowsDropped_Count, TransformationErrors_Count, and others. At 15-minute intervals, queried at about 22:50 before the destroy, since the DCR's metrics go with it:
+
+Timestamp             Name                             Total
+2026-10-27T03:40:00Z  Logs Ingestion Requests per Min  2.0
+2026-10-27T03:55:00Z  Logs Ingestion Requests per Min  2.0
+2026-10-27T04:10:00Z  Logs Ingestion Requests per Min  4.0
+2026-10-27T04:25:00Z  Logs Ingestion Requests per Min  2.0
+2026-10-27T04:40:00Z  Logs Ingestion Requests per Min  4.0
+2026-10-27T03:40:00Z  Logs Rows Received per Min       161.0
+2026-10-27T03:55:00Z  Logs Rows Received per Min       1163.0
+2026-10-27T04:10:00Z  Logs Rows Received per Min       2324.0
+2026-10-27T04:25:00Z  Logs Rows Received per Min       1208.0
+2026-10-27T04:40:00Z  Logs Rows Received per Min       2171.0
+2026-10-27T03:40:00Z  Logs Rows Dropped per Min        0.0
+2026-10-27T03:55:00Z  Logs Rows Dropped per Min        0.0
+2026-10-27T04:10:00Z  Logs Rows Dropped per Min        0.0
+2026-10-27T04:25:00Z  Logs Rows Dropped per Min        0.0
+2026-10-27T04:40:00Z  Logs Rows Dropped per Min        0.0
+
+### note: 7,027 rows received, none dropped; transformation errors 0 (not shown). The workspace held 9,811 NTANetAnalytics rows at about 22:55; the two counts were not reconciled (the last metric interval was still open).
+### cmd (about 22:05): union withsource=T NTA*, AzureActivity | where TimeGenerated > ago(1h) | summarize rows = count() by T
+
+T                Rows
+AzureActivity    457
+NTANetAnalytics  1324
+
+### cmd: NTANetAnalytics | where TimeGenerated > ago(1h) | summarize rows = count() by SubType, FlowDirection, FlowStatus
+
+FlowDirection  FlowStatus  SubType        Rows
+                           StatusMessage  2
+Outbound       Allowed     FlowLog        17
+Inbound        Denied      FlowLog        1287
+Inbound        Allowed     FlowLog        18
+
+### cmd: NTANetAnalytics | where SubType == 'StatusMessage' | evaluate narrow() | where isnotempty(Value)   (two rows, condensed)
+
+TimeProcessed                 FlowIntervalStartTime         FlowIntervalEndTime           Status
+2026-10-27T03:51:38.5720000Z  2026-10-27T03:00:00.0000000Z  2026-10-27T03:50:00.0000000Z  Completed
+2026-10-27T04:01:51.9040000Z  2026-10-27T03:50:00.0000000Z  2026-10-27T04:00:00.0000000Z  Completed
+
+### note: Traffic Analytics' own record of two completed processing runs, ten minutes apart.
+
+### (g4) what the first hour shows: the internet knocks on the two public IPs, and the NSGs turn it away
+### cmd: NTANetAnalytics | where SubType == 'FlowLog' and FlowStatus == 'Denied' | summarize rows = count(), sources = dcount(SrcIp) by DestIp, DestPort, L4Protocol | top 10 by rows
+
+DestIp      DestPort  L4Protocol  Rows  Sources
+10.100.2.4  80        TCP         5     5
+10.100.2.4  22        TCP         4     4
+10.100.2.4  23        TCP         3     3
+10.0.0.4    80        TCP         2     2
+10.0.0.4    31434     TCP         2     2
+10.0.0.4    8082      TCP         2     2
+10.0.0.4    45286     TCP         2     2
+10.0.0.4    7707      TCP         2     2
+10.0.0.4    55762     TCP         2     2
+10.0.0.4    2222      TCP         2     2
+
+### note: the only destinations are the NICs behind the two public IPs: the NVA (10.100.2.4) and the on-prem gateway (10.0.0.4). Common service ports on the NVA, scattered high ports on the gateway, a different source almost every time: automated scanning. 1,287 inbound attempts denied within about twenty minutes of the build. Source addresses are not recorded here.
+
+### (g5) not resolved: no topology
+### cmd (about 22:55): NTANetAnalytics | where SubType == 'FlowLog' | summarize rows = count() by FlowType; and union withsource=T NTA* | where TimeGenerated > ago(2h) | summarize rows = count() by T
+
+FlowType  Rows
+Unknown   9804
+
+T                Rows
+NTANetAnalytics  9811
+
+### note: Traffic Analytics classifies flows (IntraVNet, InterVNet, S2S, ExternalPublic, MaliciousFlow, ...) from the topology it reads from the subscription with its own read permissions, and writes that topology to NTATopologyDetails. About 70 minutes after the build no flow was classified and no topology table existed. Not explained. It does not affect whether flows reach the workspace; it matters for detections that would select on FlowType.
+
+### revised result (2026-10-26)
+### The path is effective end to end: on a fresh build with the configuration of 2026-10-20, Network Watcher wrote, Traffic Analytics read on its ten-minute cycle, its DCR received 7,027 rows with none dropped, and NTANetAnalytics filled. On 2026-10-20 the same configuration produced none of the data side, while the management side (NWTA DCR and DCE) worked. Two differences between the runs are known: on 2026-10-20 the flow logs were created in the middle of a failing apply (409s, subnets not yet built) and the NWTA pair was created for the first time; today the flow logs came last in a clean apply and the pair was created anew. Either may explain it, or neither: one run each, so this is a candidate cause, not a shown one. What the two runs do show is that the same, correct configuration can be effective on one build and not on another, and that nothing in Terraform, the plan checks or the flow-log resource reports the difference; only the data does. The detection side therefore needs its own check that rows arrive (W8). Topology (FlowType) remains open.

@@ -1,0 +1,96 @@
+### 2026-10-26 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
+### test: the three telemetry sources of ADR D21 can be read from the observability workspace with KQL, and two independent sources record the same event: one TCP connection from tier 1 to tier 0, seen by the VNet flow logs (outside the VMs) and by nftables on the NVA (inside the NVA)
+### note: sources: control plane, AzureActivity (subscription Activity Log diagnostic setting, infra/envs/observability/activity-log.tf); VNet flows, NTANetAnalytics (flow logs + Traffic Analytics, R1); NVA, Syslog (AMA + DCR, R2). DNS logging (W7) is not built and not part of this test.
+### note: lab built by Terraform apply 40445630467 (a19967f), destroyed by Terraform nightly destroy 40452437190 (22:55:54-22:59:38). Addresses are the lab's private ones, allocated at build: tier 1 10.102.0.4, tier 0 10.101.0.4, NVA 10.100.2.4. MAC addresses are Azure-assigned to the virtual NICs and change with every build.
+
+### (a) a log line for the connection on the NVA
+### note: the baseline forward chain accepts lab traffic without logging (log prefixes are W7 item c, not done), so a tier1->tier0 connection leaves no Syslog line by itself. A temporary table adds one: a forward base chain with policy accept and a single log rule. A packet must be accepted by every base chain on a hook and a drop anywhere is final, so a chain that only logs and accepts cannot let through what the baseline drops. The table is removed after the test. (A first attempt named the chain "fwd", an nft keyword, and failed before any chain or rule existed; the empty table was reused.)
+### cmd (lines joined here with ;): az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts "nft add chain inet cneinv inv '{ type filter hook forward priority 0; policy accept; }'; nft add rule inet cneinv inv ip saddr 10.102.0.4 ip daddr 10.101.0.4 tcp dport 22 log prefix '\"cne-inv-test: \"' level warn; nft list table inet cneinv; echo ---; nft list ruleset | grep -E '^table|hook|flowtable'"
+
+table inet cneinv {
+	chain inv {
+		type filter hook forward priority filter; policy accept;
+		ip saddr 10.102.0.4 ip daddr 10.101.0.4 tcp dport 22 log prefix "cne-inv-test: "
+	}
+}
+---
+table inet filter {
+		type filter hook input priority filter; policy drop;
+		type filter hook forward priority filter; policy drop;
+		type filter hook output priority filter; policy accept;
+table ip nat {
+		type nat hook postrouting priority srcnat; policy accept;
+table ip security {
+		type filter hook output priority 150; policy accept;
+table inet cneinv {
+		type filter hook forward priority filter; policy accept;
+# Warning: table ip security is managed by iptables-nft, do not touch!
+
+### note: on the forward hook only the baseline (inet filter) and the test table; no flowtable, so no fast path that would skip the forward chains. One table is not in this repository: ip security, on the output hook (below, (f)).
+
+### (b) the connection, from tier 1
+### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-tier1 --command-id RunShellScript --scripts "for i in 1 2 3; do timeout 3 bash -c '</dev/tcp/10.101.0.4/22' && echo open || echo closed; sleep 2; done"   (22:27:42)
+
+open
+open
+open
+
+### (c) the NVA's own record, then the test table removed
+### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts 'nft delete table inet cneinv; grep -c "cne-inv-test:" /var/log/kern.log'
+
+12
+
+### note: the rule matches every packet tier 1 sends, not only the first: SYN, ACK, FIN, ACK, four per connection, three connections. A rule meant to log connections needs ct state new (as planned for W7 c).
+
+### (d) the three sources, one query
+### cmd (about 22:50; the first try used "first"/"last" as column names, which are reserved in KQL):
+union
+  (AzureActivity | where TimeGenerated > ago(2h)
+     | summarize rows = count(), firstSeen = min(TimeGenerated), lastSeen = max(TimeGenerated) | extend source = 'control plane: AzureActivity'),
+  (NTANetAnalytics | where SubType == 'FlowLog' and SrcIp == '10.102.0.4' and DestIp == '10.101.0.4' and DestPort == 22
+     | summarize rows = count(), firstSeen = min(FlowStartTime), lastSeen = max(FlowEndTime) | extend source = 'VNet flow: NTANetAnalytics'),
+  (Syslog | where SyslogMessage has 'cne-inv-test:' and SyslogMessage has '10.102.0.4'
+     | summarize rows = count(), firstSeen = min(TimeGenerated), lastSeen = max(TimeGenerated) | extend source = 'NVA: Syslog')
+| project source, rows, firstSeen, lastSeen
+
+FirstSeen                     LastSeen                      Rows  Source
+2026-10-27T04:27:42.041Z      2026-10-27T04:27:53.032Z      4     VNet flow: NTANetAnalytics
+2026-10-27T04:27:42.467793Z   2026-10-27T04:27:46.483294Z   12    NVA: Syslog
+2026-10-27T03:42:39.5800871Z  2026-10-27T04:28:39.4833941Z  470   control plane: AzureActivity
+
+### note: all three sources answer. The flow-log window (22:27:42.041 to 22:27:53.032) contains the NVA's twelve lines (22:27:42.467 to 22:27:46.483): the same three connections, recorded once outside the VMs and once inside the NVA. The same query also answers in the portal (workspace > Logs, KQL mode); run from a VM's or resource group's Logs blade it is scoped to that resource and returns nothing for these tables.
+
+### (e) one connection, four NICs
+### cmd: NTANetAnalytics | where SubType == 'FlowLog' and SrcIp == '10.102.0.4' and DestIp == '10.101.0.4' and DestPort == 22 | evaluate narrow() | where isnotempty(Value) and not(Column in ('TenantId', 'Type'))
+### (five rows; selected columns, condensed. All rows: L4Protocol TCP, L7Protocol ssh, FlowStatus Allowed, FlowType Unknown, IsFlowCapturedAtUdrHop false, FlowEncryption Unencrypted.)
+
+Row  FlowLogResourceId  FlowDirection  MacAddress         AclGroup            AclRule                Flows                PacketsSrcToDest/DestToSrc  Interval (UTC)
+0    fl-cne-tier1       Outbound       00-0D-3A-F4-7D-B9  nsg-tier1-workload  allowvnetoutbound      AllowedOutFlows 3    12 / 9                      04:20-04:30
+2    fl-cne-hub         Inbound        7C-ED-8D-06-55-0E  nsg-hub-nva         allowforwardedfromlab  AllowedInFlows 3     12 / 9                      04:20-04:30
+3    fl-cne-hub         Outbound       7C-ED-8D-06-55-0E  nsg-hub-nva         allowvnetoutbound      AllowedOutFlows 3    8 / 6                       04:20-04:30
+1    fl-cne-tier0       Inbound        7C-ED-8D-05-4C-64  nsg-tier0-workload  allowvnetinbound       AllowedInFlows 2     8 / 6                       04:20-04:30
+4    fl-cne-tier0       Inbound        7C-ED-8D-05-4C-64  nsg-tier0-workload  allowvnetinbound       AllowedInFlows 1     0 / 0                       04:30-04:40
+
+### note: the connection is recorded at each NIC it crosses: tier 1 out, NVA in, NVA out, tier 0 in. Traffic Analytics aggregates per interval by source, destination, port and protocol, so three connections become one row per NIC; tier 0's third connection fell into the next interval (row 4), and 2 + 1 = 3. Each row names the NSG rule that let that hop through: on the tier NICs Azure's default AllowVnetOutBound/AllowVnetInBound, on the NVA our rule allowforwardedfromlab. The union in (d) ran before row 4 was processed, hence 4 there.
+### note: the packet counts differ by hop (12/9 at tier 1 and the NVA's inbound side, 8/6 at the NVA's outbound side and tier 0). Not examined further.
+
+### (f) a table on the NVA that no one in this project wrote
+### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts 'nft list table ip security'
+
+table ip security {
+	chain OUTPUT {
+		type filter hook output priority 150; policy accept;
+		ip daddr 168.63.129.16 tcp dport 53 counter packets 0 bytes 0 accept
+		ip daddr 168.63.129.16 ip protocol tcp skuid 0 counter packets 13951 bytes 4925297 accept
+		ip daddr 168.63.129.16 ip protocol tcp ct state invalid,new counter packets 0 bytes 0 drop
+	}
+}
+# Warning: table ip security is managed by iptables-nft, do not touch!
+
+### note: rules for Azure's platform address 168.63.129.16 (wireserver): DNS allowed, TCP allowed for root only (13,951 packets so far), any other new TCP connection to it dropped. This matches what the Azure Linux VM agent sets up so that unprivileged processes cannot reach the platform endpoint; that the agent created it is inferred from the pattern, not traced. It sits on the output hook and does not touch forwarded traffic. It means the NVA's effective ruleset is not only what cloud-init-nva.yaml writes.
+
+### (g) observation for M3: tier 1 reaches tier 0 on SSH through both layers
+### note: (b) and (e) show the connection allowed by the NVA (baseline accepts lab sources) and by tier 0's NSG through Azure's default AllowVnetInBound. Whether tier 1 should reach tier 0 on 22 at all is a design question, not decided here; recorded as a candidate baseline gap for M3.
+
+### result
+### All three sources of ADR D21 that are built can be queried from one workspace with KQL, and two of them, independent of each other, recorded the same three connections within the same eleven seconds: the flow logs at four NICs, with the NSG rule for each hop, and nftables on the NVA. Open: Traffic Analytics' topology (FlowType Unknown, R1 (g5)); log prefixes in the baseline so the NVA records connections without a test table (W7 c); DNS (W7).
