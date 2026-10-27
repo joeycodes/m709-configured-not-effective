@@ -71,10 +71,12 @@ Goal: the pipeline becomes the enforcement point, and the telemetry layer can pr
 - Verify each source with a query per source rather than assuming enablement equals arrival.
 - **Verify before building on it:** NSG flow logs are on a retirement path in favour of VNet flow logs, and `AzureNetworkAnalytics_CL` is the legacy Traffic Analytics schema. Confirm which schema your subscription actually writes and pin the detections to that — this is cheap now and expensive in November.
 - **Exit:** a one-page telemetry inventory — source → table → retention → what it can prove.
+- **Moved (2026-10-26):** DNS query logging to Week 9 (see there). Built in M2: VNet flow logs with Traffic Analytics, NVA log via AMA, Activity Log (evidence R1, R2, R4). The schema written is `NTANetAnalytics`, not `AzureNetworkAnalytics_CL`.
 
 ### Week 8 (Oct 22–31) — Detection-as-code v1 and M2 close
 - First rules in `infra/detections/`, deployed by the same pipeline (code, never portal clicks): (a) accepted flow Tier-2 → Tier-0; (b) flow observed at Tier-0 with no corresponding firewall-log entry (inspection bypassed); (c) DNS query entropy / length / rate baseline.
 - Each rule gets a synthetic trigger proving it fires.
+- **Moved (2026-10-26):** rule (c) to Week 9 with the DNS logging it needs. The M2 gate counts rules (a) and (b).
 - **Start the report now.** Create the GPS-format skeleton and back-fill Chapter 3 (design) and Chapter 4 (implementation) from `TECHNICAL-DESIGN.md` and the ADRs. This single decision is the strongest protection the schedule has.
 - **M2 GATE:** minimum shippable core — a third party can clone, bootstrap, and obtain the environment, the gates, and firing detections from documentation alone.
 
@@ -87,6 +89,7 @@ Goal: the control-effectiveness matrix, populated with evidence.
 ### Week 9 (Nov 1–8) — Harness and pre-registration
 - CALDERA, Atomic Red Team, stratus-red-team configured in `attack/tooling/`; assume-breach foothold established on the Tier-2 host.
 - **Pre-register** the expected control and expected signal for every scenario, committed with a timestamp *before* the first run. This is the stated mitigation for the known-answer risk (§9 of PROJECT.md) and only counts if it is timestamped ahead of the results.
+- **DNS logging and rule (c)**, moved from M2: DNS security policy linked to the tier VNets, diagnostic setting to the workspace (`DNSQueryLogs`), verified with KQL; rule (c) deployed by the pipeline with a synthetic trigger. Must be done before #4 runs in Week 10, since #4 is mandatory and (c) is its detection. Open: azurerm support (azapi expected), price, whether a traffic rule is needed for logging (ADR D21).
 - Runbooks in `attack/scenarios/`; matrix skeleton committed.
 - **Exit:** scenario #1 executes end to end as a dry run.
 
