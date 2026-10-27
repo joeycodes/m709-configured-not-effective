@@ -1,0 +1,27 @@
+### 2026-10-20 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
+### finding: every Terraform plan and apply retrieves the access keys of both storage accounts and the shared keys of the workspace, and azurerm keeps them in state. While shared key was open on sacneflowlogs (R1 (e)), a usable key to it was copied into state by CI.
+### note: found while reading the Activity Log for R1 (f). Keys are named, never printed: no key value appears in this record or in any command output kept for it.
+
+### (a) the retrievals
+### source: R1 (f). Each lab plan or apply ran listKeys on sacneflowlogs and sharedKeys on log-cne-observability (the lab's data sources); each observability plan or apply ran listKeys on sacneflowlogs and sacneevidence and sharedKeys on the workspace (the resources). All succeeded: listKeys is a control-plane action that works whether or not the account accepts shared key. The CI identity holds Contributor on the subscription (ADR-000 L1), which includes both actions.
+
+### (b) why it matters
+### note: with shared key disabled, a key in state opens nothing; disallowing shared key is the control that makes the copy harmless. From 17:08:50 to 17:59:10 shared key was allowed on sacneflowlogs. Runs that refreshed the account in that window: plans 39516543081, 39516875167, 39517097925 and 39518194164, applies 39517209558 (lab) and 39518400445 (observability). The first two are confirmed in the Activity Log; the rest ran after it was queried. Anyone able to read lab.tfstate or observability.tfstate in that window held a key with full data access to the raw flow logs, including deleting them before Traffic Analytics could process them.
+### note: the lab state was emptied by the nightly destroy (Terraform nightly destroy 39521867330, 18:31:48-18:35:30). The observability state keeps the keys of both accounts as long as the accounts exist.
+
+### (c) response
+### cmd: az storage account show -g rg-cne-observability -n sacneflowlogs --query allowSharedKeyAccess -o tsv
+false
+### cmd: for k in primary secondary; do az storage account keys renew -g rg-cne-observability -n sacneflowlogs --key "$k" --query "[].{key:keyName, created:creationTime}" -o table; done
+### (the --query keeps the new key values off the terminal; 'primary'/'secondary' are deprecated aliases of key1/key2)
+
+Key    Created
+key1   2026-10-21T00:36:13.526667+00:00
+key2   2026-10-21T00:36:14.485193+00:00
+
+### note: both keys issued before or during the window are void. The next observability run reads the new ones into state; with shared key disallowed they open nothing.
+### not verified: that the state file holds the key attributes. Safe check, prints booleans only:
+### terraform -chdir=infra/envs/observability state pull | jq '[.resources[] | select(.type=="azurerm_storage_account") | {name, key_in_state: ((.instances[0].attributes.primary_access_key // "") != "")}]'
+
+### result
+### Keeping keys out of the repository does not keep them out of reach: Terraform fetches them on every run and stores them next to everything else in state. Disallowing shared key is what makes that harmless; turning it on, even for a 50-minute test, made the state a credential store. Any future decision to keep shared key on (ADR D21) has to count this, together with who can read state.

@@ -106,3 +106,27 @@ assert	Assert	2026-10-17T04:14:21.0188725Z ERROR: Failed to retrieve effective r
 
 ### result
 ### A change made outside Terraform left every plan check green and took tier 1's internet egress off the NVA; the assertion named the tier and the three properties that broke, and passed again once apply had restored the association. The same runs show that a detective control is only as reliable as the tools it runs on: without distinguishing a failed query from a failed check, its alarms cannot be read at face value.
+
+### (g) 2026-10-20 (UTC-6): the same fault on four attempts in a row; times in ### lines UTC-6, log lines UTC
+### runs: Reachability assertion 39508238981 (workflow_run after Terraform apply 39508140276, 32cc401, which changed nothing). Attempts 1-4 failed (started 16:27:27, 16:35:51, 16:42:34, 16:44:28), attempt 5 passed (16:50:17). Attempts 1 and 2 were read: the deadlock below, on the first query (tier 0). Attempts 3 and 4 were not inspected.
+### excerpt, attempt 1:
+
+2026-10-20T22:27:51.5324767Z ERROR: deadlock detected by _ModuleLock('requests.structures') at 140451612907472
+2026-10-20T22:27:51.5375642Z _frozen_importlib._DeadlockError: deadlock detected by _ModuleLock('requests.structures') at 140451612907472
+2026-10-20T22:27:51.7145269Z ERROR: Failed to retrieve effective route table for vm-cne-tier0
+##[error]Process completed with exit code 1.
+
+### cmd (workstation, between attempts 2 and 5): bash infra/assertions/reachability.sh
+
+PASS: vm-cne-tier0 has a single active user route for 0.0.0.0/0 via the NVA
+PASS: vm-cne-tier0 has a single active user route for 10.100.0.0/14 via the NVA
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier0.
+PASS: vm-cne-tier1 has a single active user route for 0.0.0.0/0 via the NVA
+PASS: vm-cne-tier1 has a single active user route for 10.100.0.0/14 via the NVA
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier1.
+PASS: vm-cne-tier2 has a single active user route for 0.0.0.0/0 via the NVA
+PASS: vm-cne-tier2 has a single active user route for 10.100.0.0/14 via the NVA
+PASS: illegal Azure implemented default route is invalid for vm-cne-tier2.
+
+### note: upstream: Azure/azure-cli issue #33996 (open at time of writing) reports the same traceback for Azure CLI 2.89.1 with its bundled Python 3.14 on ubuntu-24.04 runners: msal imports requests lazily on the command's worker thread while another import of it is in progress. Proposed fix: azure-cli PR #33997 (import both eagerly at startup); not known to be released. The runner's CLI version was not recorded for these runs.
+### note: four failures in a row on a lab whose routes were correct. The follow-up in (f) stands, and the retry bound has to allow for runs of failures, not a single one.
