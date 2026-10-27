@@ -22,7 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-      # --- 1. What does GitHub actually assert about us? ------------------
       - name: Request OIDC token and print claims
         shell: bash
         run: |
@@ -50,7 +49,6 @@ jobs:
           echo "$CLAIMS" | jq '{iss, sub, aud, repository, repository_id,
                                 repository_owner, repository_owner_id, ref, event_name}'
 
-      # --- 2. Does Azure accept it? --------------------------------------
       # azure/login takes the OIDC token, exchanges it at Entra ID for an
       # Azure access token, and leaves the az CLI logged in for later steps.
       # vars.* are repository Variables (identifiers, not secrets).
@@ -61,7 +59,6 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      # --- 3. Did we get the permissions we expect? ----------------------
       - name: Verify control plane and data plane access
         shell: bash
         run: |
