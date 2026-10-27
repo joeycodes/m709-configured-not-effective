@@ -15,6 +15,8 @@ write_files:
 
   # Baseline ruleset: default deny, allow lab prefixes. 
   # Tightened per-tier in the segmentation tests.
+  # Accepted new connections and the tier-2 to tier-0 
+  # drop are logged for the detections (ADR D21).
   - path: /etc/nftables.conf
     owner: root:root
     permissions: "0755"
@@ -44,8 +46,8 @@ write_files:
           type filter hook forward priority 0; policy drop;
           ct state established,related counter accept
           ct state invalid counter drop
-          ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter drop
-          ip saddr @allowed_v4 counter accept
+          ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter log prefix "fwd-t2t0-drop: " drop
+          ip saddr @allowed_v4 ct state new log prefix "fwd-accept: " counter accept
           counter log prefix "fwd-drop: " drop
         }
  
