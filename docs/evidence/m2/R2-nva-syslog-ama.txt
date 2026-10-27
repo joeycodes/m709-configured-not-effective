@@ -1,0 +1,69 @@
+### 2026-10-20 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
+### test: kernel log lines from nftables on the NVA reach the workspace's Syslog table through the Azure Monitor Agent (AMA) and the data collection rule (ADR D21)
+### note: the path is nftables -> kernel log -> rsyslog -> AMA -> workspace. The DCR (dcr-cne-nva-syslog, observability layer) says what to collect: facility kern, Warning and above, stream Microsoft-Syslog. It names no VM; the lab layer binds the NVA to it with an association. AMA authenticates with the NVA's system-assigned managed identity, so the workspace's local auth being disabled does not apply to it.
+### note: DCR by #40 (5c3fb05), applied by Terraform apply (observability) 39506555747. Agent, identity and association by #43 (deaafde), applied by Terraform apply 39517209558 (17:46:48-17:48:14). No nftables rule in the baseline logs at Warning except the forward chain's final drop, so the test lines below are generated on purpose.
+
+### (a) before merge: the policy gate stops an untagged resource
+### runs: Terraform plan 39516543081 (feat/nva-ama, af41fe1), "Policy test against the plan" step
+
+FAIL - /home/runner/work/_temp/plan.json - terraform.zone_tag - azurerm_virtual_machine_extension.nva_ama: missing zone tag
+8 tests, 7 passed, 0 warnings, 1 failure, 0 exceptions
+
+### note: the extension carried local.common_tags only. Fixed in c40a41f with merge(local.common_tags, { "zone" = "hub" }); that run (39516875167) then failed terraform fmt -check, fixed in bac140c; plan 39517097925 passed. The association resource takes no tags and is not selected by the rule.
+
+### (b) the agent on the NVA
+### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts 'systemctl is-active azuremonitoragent rsyslog; ls /etc/rsyslog.d/; ls /etc/opt/microsoft/azuremonitoragent/config-cache/configchunks/'   (output of two invocations, combined)
+
+active
+active
+10-azuremonitoragent-omfwd.conf
+20-ufw.conf
+21-azureotelcollector.conf
+21-cloudinit.conf
+45-frr.conf
+50-default.conf
+2203465655229798000.json
+
+### note: the agent runs, has written its forwarding rule into rsyslog (10-azuremonitoragent-omfwd.conf) and holds a cached configuration chunk from the DCR.
+
+### cmd: az monitor log-analytics query -w "$WS" --analytics-query "Heartbeat | where TimeGenerated > ago(1h) | summarize lastSeen = max(TimeGenerated) by Computer, Category"
+
+Category             Computer    LastSeen
+Azure Monitor Agent  vm-cne-hub  2026-10-21T00:02:10.2969782Z
+
+### note: the agent reaches the workspace: its identity is accepted and the association is in effect.
+
+### (c) a test line written to /dev/kmsg is not a kern line
+### cmd: az vm run-command invoke ... --scripts 'echo "<4>cne-ama-test $(date -u +%FT%TZ)" > /dev/kmsg'   (17:51:46), later: grep -c cne-ama-test /var/log/syslog /var/log/kern.log
+
+/var/log/syslog:1
+/var/log/kern.log:0
+
+### note: the line is in the kernel ring buffer (dmesg shows "cne-ama-test 2026-10-20T23:51:46Z") but rsyslog did not file it under kern: the kernel gives text written to /dev/kmsg by user space the user facility, whatever the prefix says; <4> sets the level only. The DCR collects kern alone, so this line is expected to be dropped, and a Syslog query for it at about 18:00 returned nothing. This is consistent with the filter but not a clean test of it, since the agent had been running for only a few minutes. The method was wrong for the purpose; (d) replaces it.
+
+### (d) a real nftables log line
+### note: a temporary table, separate from the baseline ruleset, logs packets to 192.0.2.1 (RFC 5737 documentation range); one ping triggers it; the table is deleted in the same script. The baseline rules are not touched.
+### cmd:
+az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts '
+nft add table inet cnetest
+nft add chain inet cnetest out "{ type filter hook output priority 0; }"
+nft add rule inet cnetest out ip daddr 192.0.2.1 log prefix \"cne-ama-test: \" level warn
+ping -c1 -W1 192.0.2.1
+nft delete table inet cnetest
+grep -c cne-ama-test: /var/log/kern.log'
+
+PING 192.0.2.1 (192.0.2.1) 56(84) bytes of data.
+
+--- 192.0.2.1 ping statistics ---
+1 packets transmitted, 0 received, 100% packet loss, time 0ms
+
+1
+
+### note: the packet loss is expected (nothing answers in that range). kern.log holds the line: rsyslog filed it under kern.
+### cmd: az monitor log-analytics query -w "$WS" --analytics-query "Syslog | where TimeGenerated > ago(30m) | where SyslogMessage has 'cne-ama-test:' | project TimeGenerated, Computer, Facility, SeverityLevel, SyslogMessage"
+
+TimeGenerated                Computer    Facility  SeverityLevel  SyslogMessage
+2026-10-21T00:03:22.888504Z  vm-cne-hub  kern      warning        cne-ama-test: IN= OUT=eth0 SRC=10.100.2.4 DST=192.0.2.1 LEN=84 TOS=0x00 PREC=0x00 TTL=64 ID=24220 DF PROTO=ICMP TYPE=8 CODE=0 ID=5476 SEQ=1
+
+### result
+### The NVA path is effective end to end: a line logged by nftables in the kernel arrived in the workspace's Syslog table with facility kern and severity warning, and the agent's heartbeat shows the identity, the association and the DCR in effect. It works with the workspace's local auth disabled. Still to do (W7 c): log prefixes on the T2->T0 drop and on new-connection accepts, so that the baseline itself produces these lines.

@@ -1,0 +1,123 @@
+### 2026-10-20 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h; the session ran 15:00 to 18:40 UTC-6)
+### test: VNet flow logs with Traffic Analytics (ADR D21), built from main, carry the lab's traffic from the five VNets into the observability workspace
+### note: the path has two stages, checked separately. Stage 1: Network Watcher writes raw flow records to the staging account sacneflowlogs (container insights-logs-flowlogflowevent). Stage 2: Traffic Analytics reads them every 10 minutes and writes the processed copy to log-cne-observability (NTANetAnalytics and the other NTA* tables). The account is observed through its Transactions metric split by API (control plane); the workspace by query.
+### note: the account disallows shared key and the workspace disallows local auth (ADR D21). Whether either stage works under those settings was an open question before this run.
+### note: built by #38 (account, observability layer, 5f9f7bc) and #39 (flow logs, lab layer, 5640148). The author's account holds no data-plane role on the account (az storage blob list --auth-mode login is refused), so blobs were not listed directly; the metric stands in for it.
+
+### (a) first build: the flow logs race the subnets
+### runs: Terraform apply 39501601263 (push, 5640148). Attempt 1 (15:35:31-15:38:11) failed; attempt 2 (15:42:35-15:46:08) succeeded; Reachability assertion 39503021558 passed after it.
+### excerpt, attempt 1 (six errors, one shown in full):
+
+│ Error: creating Subnet (Subscription: "23f19e67-5d24-4e37-9258-707daef49af0"
+│ Resource Group Name: "rg-cne-lab"
+│ Virtual Network Name: "vnet-cne-hub"
+│ Subnet Name: "GatewaySubnet"): performing CreateOrUpdate: unexpected status 409 (409 Conflict) with error: AnotherOperationInProgress: Another operation on this or dependent resource is in progress. To retrieve status of the operation use uri: https://management.azure.com/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/providers/Microsoft.Network/locations/canadaeast/operations/8c20d36c-aa4c-4d9c-9cec-0148e6c23b2b?api-version=2025-01-01.
+│   with azurerm_subnet.reserved["GatewaySubnet"],
+
+### the six resources and the VNet operation each waited on:
+###   azurerm_subnet.reserved["GatewaySubnet"]                                    hub     8c20d36c
+###   azurerm_subnet_network_security_group_association.workload["snet-hub-nva"]  hub     8c20d36c
+###   azurerm_subnet_network_security_group_association.workload["snet-tier0-workload"]  tier0  368d5417
+###   azurerm_subnet_route_table_association.spoke["tier0"]                       tier0   368d5417
+###   azurerm_subnet_network_security_group_association.workload["snet-tier2-workload"]  tier2  0b86d662
+###   azurerm_subnet.onprem["snet-onprem-srv"]                                    onprem  9ac16eae
+
+### note: Azure accepts one change at a time on a VNet. The provider queues subnet, association and peering changes per VNet, but not flow logs; the flow logs depend only on the VNet, so they were created in parallel with those changes, and the subnet-side requests were refused. Errors on the same VNet share one operation id. Attempt 2 found the flow-log operations finished and completed the rest.
+### fix: #41 (32cc401) makes the flow logs depend on the subnets, the NSG and route-table associations and the peerings. Its apply (39508140276) ran against the lab already built and changed nothing; that a fresh build is clean is still to be shown at the next build.
+### side effect: the plan of an unrelated PR (Terraform plan 39501776758, feat/nva-syslog-dcr, 15:36:50-15:37:36) failed at its Plan step while attempt 1 held the lab state lock. Attributed to the lock from the timing; the step log was not kept.
+
+### (b) the flow-log configuration as deployed
+### cmd: az network watcher flow-log show --location canadaeast --name fl-cne-hub --query "{enabled:enabled, ta:flowAnalyticsConfiguration.networkWatcherFlowAnalyticsConfiguration}" -o json
+
+{
+  "enabled": true,
+  "ta": {
+    "enabled": true,
+    "trafficAnalyticsInterval": 10,
+    "workspaceId": "eb7db6d2-a451-47ed-b547-4dd4f90b4ea1",
+    "workspaceRegion": "canadaeast",
+    "workspaceResourceId": "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-observability/providers/Microsoft.OperationalInsights/workspaces/log-cne-observability"
+  }
+}
+
+### cmd: az provider show -n Microsoft.Insights --query registrationState -o tsv
+Registered
+
+### (c) stage 1, Network Watcher -> account: effective
+### cmd: az monitor metrics list --resource "$SA_ID/blobServices/default" --metric Transactions --aggregation Total --interval PT15M --start-time 2026-10-20T21:00:00Z --filter "ResponseType eq '*'"
+### (no --end-time, so one hour)
+
+Timestamp             Success  ClientOtherError  AuthorizationError
+2026-10-20T21:00:00Z      0.0               0.0                 0.0
+2026-10-20T21:15:00Z      0.0               0.0                 0.0
+2026-10-20T21:30:00Z     13.0               1.0                 0.0
+2026-10-20T21:45:00Z     58.0               0.0                 0.0
+
+### cmd: the same with --end-time at query time (about 16:50) and --filter "ApiName eq '*'"; columns rearranged, one row per interval. GetBlobProperties, PutBlob and SetBlobServiceProperties were 0 throughout and are left out.
+
+Timestamp             PutBlock  PutBlockList  CreateContainer  GetBlobServiceProperties  GetBlob  ListBlobs
+2026-10-20T21:00:00Z         0             0                0                         0        0          0
+2026-10-20T21:15:00Z         0             0                0                         0        0          0
+2026-10-20T21:30:00Z         8             4                2                         0        0          0
+2026-10-20T21:45:00Z        29            29                0                         0        0          0
+2026-10-20T22:00:00Z        34            30                0                         2        1          0
+2026-10-20T22:15:00Z        33            31                1                         4        2          0
+2026-10-20T22:30:00Z        30            30                0                         0        0          2
+2026-10-20T22:45:00Z         4             4                0                         0        0          0
+
+### note: writes start with the flow logs (attempt 1 of (a)) and run steadily at about two block commits a minute. Shared key being disabled did not stop them. Microsoft's Traffic Analytics FAQ says Network Watcher "tries to connect to the storage account using a key, and if that fails, it switches to a token"; the single ClientOtherError at 15:30 is consistent with that, not confirmed.
+
+### (d) stage 2, account -> workspace: not effective
+### reads: every read in (c) falls in an interval with a Terraform run that refreshes the account (16:00: plan 39505193135; 16:15: apply (observability) 39506555747), except ListBlobs at 16:30, which matches the author's refused az storage blob list. No read pattern of a 10-minute processing cycle appears.
+### cmd (about 17:49): az monitor log-analytics query -w "$WS" --analytics-query "union withsource=T NTA*, AzureActivity | where TimeGenerated > ago(3h) | summarize rows = count() by T"
+### note: AzureActivity is a control: it is known to receive data, so an empty NTA* result cannot come from a wrong workspace or a query that matches nothing.
+
+T              Rows
+AzureActivity  559
+
+### note: no NTA* table holds a row, about two hours and ten minutes after the flow logs were created. The FAQ gives 20-30 minutes for a first analysis and says to recheck after 60.
+
+### (e) experiment: does Traffic Analytics need shared key on the account?
+### hypothesis: Traffic Analytics reads the raw logs with the account key and, unlike Network Watcher, does not fall back to a token.
+### prediction if true: within 30-60 minutes of re-enabling shared key, ListBlobs/GetBlob appear on a 10-minute cycle and NTA* rows follow.
+### change: #42 (b6cea1c) set shared_access_key_enabled = true on sacneflowlogs, nothing else. Checkov then flagged CKV2_AZURE_40 and CKV2_AZURE_41; both were skipped as TEMPORARY (Policy 39512279049 failed on the second before it was added). Applied by Terraform apply (observability) 39512936106, done 17:08:50. Reverted by #44 (a19967f), applied by 39518400445, done 17:59:10; both skips removed.
+### cmd: the ApiName query of (c) at 5-minute intervals from 17:00 (query at about 17:28)
+
+Timestamp             PutBlock  PutBlockList  GetBlobServiceProperties  GetBlob  ListBlobs
+2026-10-20T23:00:00Z        14            10                         2        1          0
+2026-10-20T23:05:00Z        10            10                         6        2          0
+2026-10-20T23:10:00Z        10            10                         0        0          0
+2026-10-20T23:15:00Z        10            10                         0        0          0
+2026-10-20T23:20:00Z        10            10                         0        0          0
+2026-10-20T23:25:00Z         4             4                         0        0          0
+
+### note: the reads at 17:00 and 17:05 coincide with plans 39512279108 (17:02) and 39512780897 (17:06) and apply 39512936106 (17:07:52). After 17:08:50: none. At about 17:49, 41 minutes in, the query of (d) still returned no NTA* row.
+### result: negative within the 50 minutes shared key was open. Shared key is not what stops stage 2.
+
+### (f) who retrieved the account and workspace keys
+### cmd (about 17:52): az monitor log-analytics query -w "$WS" --analytics-query "AzureActivity | where TimeGenerated > ago(4h) | where OperationNameValue has_any ('listKeys', 'sharedKeys') | project TimeGenerated, OperationNameValue, ActivityStatusValue, _ResourceId | order by TimeGenerated desc"
+### note: Caller is left out of the projection. Every row is Start or Success; none failed. Grouped by time and matched to CI runs:
+
+### | time (UTC-6)        | operations (Success)                                         | run                                              |
+### | 15:35:58-59         | listKeys sacneflowlogs; sharedKeys workspace                  | Terraform apply 39501601263, attempt 1            |
+### | 15:43:01-02         | same                                                         | Terraform apply 39501601263, attempt 2            |
+### | 16:03:35-40         | listKeys sacneflowlogs x2, sacneevidence; sharedKeys x2       | Terraform plan 39505193135 (lab + observability)  |
+### | 16:14:13-14         | listKeys sacneflowlogs, sacneevidence; sharedKeys             | Terraform apply (observability) 39506555747       |
+### | 16:25:25-27         | listKeys sacneflowlogs x2, sacneevidence; sharedKeys x2       | Terraform plan 39507929773                        |
+### | 16:27:09            | listKeys sacneflowlogs; sharedKeys                            | Terraform apply 39508140276                       |
+### | 17:02:31-41         | listKeys sacneflowlogs x2, sacneevidence; sharedKeys x2       | Terraform plan 39512279108                        |
+### | 17:06:54-59         | same                                                         | Terraform plan 39512780897                        |
+### | 17:08:19-41         | listKeys sacneflowlogs x2, sacneevidence; sharedKeys          | Terraform apply (observability) 39512936106       |
+### | 17:40:55-17:41:12   | listKeys sacneflowlogs x2, sacneevidence; sharedKeys x2       | Terraform plan 39516543081                        |
+### | 17:44:08-10         | listKeys sacneflowlogs, sacneevidence; sharedKeys             | Terraform plan 39516875167                        |
+### (later runs not yet ingested at query time)
+
+### excerpt (first rows of the output):
+Success  MICROSOFT.STORAGE/STORAGEACCOUNTS/LISTKEYS/ACTION           2026-10-20T23:44:10.2467653Z  .../storageaccounts/sacneevidence
+Success  MICROSOFT.OPERATIONALINSIGHTS/WORKSPACES/SHAREDKEYS/ACTION  2026-10-20T23:44:09.4681071Z  .../workspaces/log-cne-observability
+Success  MICROSOFT.STORAGE/STORAGEACCOUNTS/LISTKEYS/ACTION           2026-10-20T23:44:08.9694264Z  .../storageaccounts/sacneflowlogs
+
+### note: every key retrieval lines up with a Terraform run (azurerm reads keys when it refreshes a storage account or a workspace, resource or data source alike). None is left over for Traffic Analytics: in about two hours it did not retrieve the account key, nor the workspace key a key-based write would need. Local auth being disabled on the workspace is therefore not a likely cause either: no request reached the point where it would apply. Consequence for state: R3.
+
+### result
+### Stage 1 is effective: the flow logs write to the account steadily, with shared key disabled. Stage 2 is configured but not effective: Traffic Analytics is enabled on the flow log with the right workspace, the resource provider is registered, yet in over two hours it read nothing from the account, retrieved no key and wrote no row. Excluded: the flow-log configuration, the provider registration, shared key on the account (experiment (e)); local auth on the workspace is unlikely by (f). Not yet explained: why the processing never starts. The raw logs of this session sit in the account until its lifecycle rule removes them (30 days).
