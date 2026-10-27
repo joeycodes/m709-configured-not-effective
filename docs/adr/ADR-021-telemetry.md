@@ -85,6 +85,14 @@ rows from the lab, recorded as evidence.
   `QueryName`, `SourceIpAddress`, `VirtualNetworkId` and
   `ResolverPolicyRuleAction` among the columns. One policy per VNet; policy and
   VNet in the same region.
-- Still open: no DNS resolver policy resource was found in the azurerm provider
-  docs, so azapi is expected; the price page lists no figure; whether a traffic
-  rule is needed for queries to be logged.
+- Checked: the azurerm provider in use (4.81.0) has no DNS resolver policy
+  resource (no `dnsResolverPolicies` in the provider binary), so it is built
+  with azapi.
+- Checked: price, from the Azure retail prices API (USD, 2026-10-26). Meters:
+  "DNS Security Policy Queries" 0.60 per million queries and "DNS Security
+  Policy Domains Managed Domain" 0.50 per unit; no per-policy or per-link meter.
+  At the lab's query volume this is cents. The policy and its links live in the
+  lab layer anyway, since the links need the lab's VNets.
+- Still open: whether a traffic rule is needed for queries to be logged (the
+  documentation ties logging to rule actions without saying that unmatched
+  queries go unlogged); tested first with no rule, then with a catch-all rule.
