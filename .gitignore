@@ -17,3 +17,6 @@ override_*.tf
 *.tfplan
 tfplan
 plan.json
+
+# Local, non-technical material; not part of the repository
+_local/

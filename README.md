@@ -4,7 +4,9 @@
 
 Cloud security controls are usually verified by reviewing their configuration. But a control can be present in the configuration and still be ineffective in practice: a security group that quietly permits every port, a route that skips the firewall, or a permitted DNS path abused for exfiltration. This project builds a trust-tiered hybrid internetwork across a simulated on-premises site and Microsoft Azure, then proves whether its controls actually hold by running attacks against them and measuring what is caught.
 
-The guiding idea: **configured does not mean effective.**
+The guiding idea: **configured does not mean effective.** The question it answers:
+
+> Can the security posture of a hybrid cloud internetwork be validated by attacking it rather than by inspecting it, and can the controls that fail silently be made detectable?
 
 ## Architecture
 
@@ -28,13 +30,20 @@ The core output is a **before/after control-effectiveness matrix**: each attack 
 
 The baseline is deliberately **one cloud**. Depth of adversarial validation is the contribution here, not provider count — a second cloud would multiply the build effort without strengthening the central claim. Address space is reserved for a second provider (`10.200.0.0/14`) and the design would mirror across, but AWS and a Kubernetes tier are explicit non-goals of the baseline and will only be attempted if the schedule allows. Application-layer penetration testing is out of scope: there is no production application, and this is an assume-breach test of network controls.
 
+## Success criteria
+
+- The environment provisions from empty accounts and is reproducible by a third party from the repository alone.
+- Policy-as-code blocks deliberately non-compliant changes in CI.
+- Every attack scenario has a recorded initial and post-remediation outcome, backed by log evidence.
+- The results state which failures can be caught deterministically and which can only be reduced.
+
 ## Stack
 
 Terraform · GitHub Actions (OIDC, no long-lived keys) · Open Policy Agent · Azure (VNet, VPN Gateway, Azure Firewall, Microsoft Sentinel, Network Watcher) · FRRouting + StrongSwan (on-premises edge)
 
 ## Status
 
-Work in progress. Academic capstone for the Master of Science in Internetworking (MINT 709), University of Alberta. Schedule in [`docs/SCHEDULE.md`](docs/SCHEDULE.md).
+Work in progress. Academic capstone for the Master of Science in Internetworking (MINT 709), University of Alberta.
 
 ## License
 

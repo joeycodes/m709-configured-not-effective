@@ -1,7 +1,7 @@
 # Technical Design
 
 **configured-not-effective** · hybrid cloud internetwork, adversarially validated
-Companion to `PROJECT.md`. This document covers the how: architecture, network design, IaC, CI/CD, detection engineering, attack scenarios, and validation.
+This document covers the how: architecture, network design, IaC, CI/CD, detection engineering, attack scenarios, and validation.
 
 ---
 
@@ -81,7 +81,6 @@ Hub-based resolution (Azure DNS Private Resolver, or the firewall acting as DNS 
 ```
 configured-not-effective/
   README.md
-  PROJECT.md
   docs/
     TECHNICAL-DESIGN.md
     adr/                     architecture decision records
