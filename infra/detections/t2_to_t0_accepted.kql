@@ -1,0 +1,7 @@
+NTANetAnalytics
+| where SubType == "FlowLog"
+| where TargetResourceId endswith "/vnet-cne-tier0"
+| where FlowDirection == "Inbound"
+| where FlowStatus == "Allowed"
+| where ipv4_is_in_range(SrcIp, "10.103.0.0/16")
+| summarize Count = count(), Flows = sum(AllowedInFlows), FirstSeen = min(FlowStartTime), LastSeen = max(FlowEndTime) by SrcIp, DestIp, DestPort, L4Protocol
