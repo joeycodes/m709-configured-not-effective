@@ -1,6 +1,6 @@
 # ADR-021: Telemetry for the two mandatory scenarios: native tables, Sentinel from week 8
 
-**Status:** Accepted; not yet built
+**Status:** Accepted; partly built (flow logs, NVA log, Activity Log); DNS deferred to M3 week 9, see Amendment
 **Date:** 2026-10-17
 **Milestone:** M2 (week 7)
 
@@ -74,3 +74,17 @@ rest of the telemetry has to be chosen.
 **Verification**
 The week-7 telemetry inventory: for each source, one KQL query that returns
 rows from the lab, recorded as evidence.
+
+**Amendment (2026-10-26): DNS moves to M3, week 9**
+- The DNS source and detection (c) are deferred from M2 to M3 week 9. M2 closes
+  on rules (a) and (b), whose sources are built and verified (evidence R1, R2,
+  R4). (c) must be in place before scenario #4 runs in week 10.
+- Checked: `dnsResolverPolicies` is offered in `canadaeast`
+  (`az provider show -n Microsoft.Network`, 2026-10-26). Its logs go to
+  `DNSQueryLogs`, resource type `microsoft.network/dnsresolverpolicies`, with
+  `QueryName`, `SourceIpAddress`, `VirtualNetworkId` and
+  `ResolverPolicyRuleAction` among the columns. One policy per VNet; policy and
+  VNet in the same region.
+- Still open: no DNS resolver policy resource was found in the azurerm provider
+  docs, so azapi is expected; the price page lists no figure; whether a traffic
+  rule is needed for queries to be logged.
