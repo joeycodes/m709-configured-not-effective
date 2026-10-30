@@ -112,7 +112,7 @@ High           2026-10-30T22:10:06.3365049Z  2026-10-30T21:10:06.3365049Z  2026-
 IncidentNumber  Severity  Status  TimeGenerated
 4               High      New     2026-10-30T22:15:14.5833333Z
 
-### note: the window is one hour (PT1H). In the Defender portal the incident shows as "T0 inbound without NVA record", category Defense evasion, priority score "Not set" when seen; the T2->T0 incidents of S2 scored 2.
+### note: the window is one hour (PT1H). In the Defender portal the incident shows as "T0 inbound without NVA record", category Defense evasion, priority score "Not set" when seen; the T2->T0 incidents of S2 scored 2. Screenshot: S3-defender-incidents.png (incidents 1-3 from S2, incident 4 from this test; priority-score filter removed).
 ### timeline (UTC-6):
 
 ### | 15:51:25 | unlogged connection reaches tier 0 (FlowStartTime)        | +0        |
