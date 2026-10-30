@@ -1,0 +1,17 @@
+NTANetAnalytics
+| where TimeGenerated > ago(30m)
+| where SubType == "FlowLog"
+| where TargetResourceId endswith "/vnet-cne-tier0"
+| where FlowDirection == "Inbound"
+| where FlowStatus == "Allowed"
+| where ipv4_is_in_any_range(SrcIp, "10.100.0.0/14", "10.0.0.0/16")
+| where not(ipv4_is_in_range(SrcIp, "10.101.0.0/16")) and SrcIp != "10.100.2.4"
+| project SrcIp, DestIp, DestPort, AllowedInFlows, FlowStartTime, FlowEndTime
+| join kind=leftanti (
+    Syslog
+    | where HostName == "vm-cne-hub"
+    | where SyslogMessage has "fwd-accept:"
+    | extend SrcIp = extract(@"SRC=(\S+)", 1, SyslogMessage), DestIp = extract(@"DST=(\S+)", 1, SyslogMessage), DestPort = toint(extract(@"DPT=(\d+)", 1, SyslogMessage))
+    | project SrcIp, DestIp, DestPort
+  ) on SrcIp, DestIp, DestPort
+| summarize Count = count(), Flows = sum(AllowedInFlows), FirstSeen = min(FlowStartTime), LastSeen = max(FlowEndTime) by SrcIp, DestIp, DestPort
