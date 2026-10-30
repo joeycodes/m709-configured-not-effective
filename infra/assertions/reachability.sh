@@ -4,7 +4,25 @@ failures=0
 
 die () {
   echo ERROR: "$*" >&2
-  exit 1
+  exit 2
+}
+
+retry() {
+  local max_attempts=$1
+  local delay=$2
+  shift 2
+
+  local attempt=1
+  until "$@"; do
+    if (( attempt >= max_attempts )); then
+      echo "WARN: giving up after $max_attempts: $*" >&2
+      return 1
+    fi
+
+    echo "Attempt $attempt failed, retrying in ${delay} seconds: $*" >&2
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
 }
 
 # Read NVA private IP address from lab.rego
@@ -26,13 +44,13 @@ for tier in tier0 tier1 tier2; do
   tier_vm=$(jq -er ".${tier}" <<< "$spoke_vms") || die "Failed to retrieve spoke VM name for $tier from Terraform output."
   [[ -n "$tier_vm" ]] || die "Spoke VM name for $tier is empty."
   # 2. NIC count must be 1, then NIC id -> nic_id
-  tier_nic_count=$(az vm show -g "$rg" -n "$tier_vm" --query 'length(networkProfile.networkInterfaces)' -o tsv) || die "Failed to retrieve NIC count for $tier_vm"
+  tier_nic_count=$(retry 3 10 az vm show -g "$rg" -n "$tier_vm" --query 'length(networkProfile.networkInterfaces)' -o tsv) || die "Failed to retrieve NIC count for $tier_vm"
   [[ "$tier_nic_count" -eq 1 ]] || die "Expected 1 NIC for $tier_vm, but found $tier_nic_count."
   # 3. effective routes                -> routes
-  tier_nic_id=$(az vm show -g "$rg" -n "$tier_vm" --query 'networkProfile.networkInterfaces[0].id' -o tsv) || die "Failed to retrieve NIC ID for $tier_vm"
+  tier_nic_id=$(retry 3 10 az vm show -g "$rg" -n "$tier_vm" --query 'networkProfile.networkInterfaces[0].id' -o tsv) || die "Failed to retrieve NIC ID for $tier_vm"
   [[ -n "$tier_nic_id" ]] || die "NIC id for $tier_vm is empty."
   # 4. checks on $routes, each printing PASS/FAIL and counting failures
-  tier_routes=$(az network nic show-effective-route-table --ids "$tier_nic_id") || die "Failed to retrieve effective route table for $tier_vm"
+  tier_routes=$(retry 3 10 az network nic show-effective-route-table --ids "$tier_nic_id") || die "Failed to retrieve effective route table for $tier_vm"
   
   for prefix in "0.0.0.0/0" "10.100.0.0/14"; do 
     matches=$(jq --arg prefix "$prefix" --arg nva "$expected_nva" '
@@ -72,5 +90,5 @@ for tier in tier0 tier1 tier2; do
   fi
 done
 
-# Exit code based on the number of failures. 0 = all passed, 1 = at least one failed.
+# Exit code based on the number of failures. 0 = all passed, 1 = at least one failed, 2 = could not check (see die).
 exit $((failures > 0))
