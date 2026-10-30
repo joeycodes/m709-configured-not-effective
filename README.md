@@ -32,7 +32,7 @@ The baseline is deliberately **one cloud**. Depth of adversarial validation is t
 
 ## Success criteria
 
-- The environment provisions from empty accounts and is reproducible by a third party from the repository alone.
+- The repository (Terraform modules, policy-as-code rules, CI pipeline and version-controlled detections) is reproducible from its documentation alone.
 - Policy-as-code blocks deliberately non-compliant changes in CI.
 - Every attack scenario has a recorded initial and post-remediation outcome, backed by log evidence.
 - The results state which failures can be caught deterministically and which can only be reduced.

@@ -130,3 +130,24 @@ PASS: illegal Azure implemented default route is invalid for vm-cne-tier2.
 
 ### note: upstream: Azure/azure-cli issue #33996 (open at time of writing) reports the same traceback for Azure CLI 2.89.1 with its bundled Python 3.14 on ubuntu-24.04 runners: msal imports requests lazily on the command's worker thread while another import of it is in progress. Proposed fix: azure-cli PR #33997 (import both eagerly at startup); not known to be released. The runner's CLI version was not recorded for these runs.
 ### note: four failures in a row on a lab whose routes were correct. The follow-up in (f) stands, and the retry bound has to allow for runs of failures, not a single one.
+
+### (h) 2026-10-30 (UTC-6): the retry, on its first run
+### note: #53 (51287a8): die exits 2 ("could not check") instead of 1 ("checked and failed"), and each Azure CLI call is wrapped in retry (3 attempts, 10 s apart; warnings to stderr so command output stays clean). Exit codes: 0 all passed, 1 at least one check failed, 2 could not check.
+### runs: Reachability assertion 41133357875 (workflow_run after Terraform apply 41131158372), 15:45:22-15:46:07, success
+### cmd: gh run view 41133357875 --log | grep -E "Attempt|WARN|PASS|FAIL|deadlock"   (log prefixes removed)
+
+2026-10-30T21:45:46.6211939Z ERROR: deadlock detected by _ModuleLock('requests.structures') at 140666550969424
+2026-10-30T21:45:46.6230125Z _frozen_importlib._DeadlockError: deadlock detected by _ModuleLock('requests.structures') at 140666550969424
+2026-10-30T21:45:46.7639218Z Attempt 1 failed, retrying in 10 seconds: az network nic show-effective-route-table --ids /subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab/providers/Microsoft.Network/networkInterfaces/nic-cne-tier0
+2026-10-30T21:45:58.3618683Z PASS: vm-cne-tier0 has a single active user route for 0.0.0.0/0 via the NVA
+2026-10-30T21:45:58.3666312Z PASS: vm-cne-tier0 has a single active user route for 10.100.0.0/14 via the NVA
+2026-10-30T21:45:58.3678025Z PASS: illegal Azure implemented default route is invalid for vm-cne-tier0.
+2026-10-30T21:46:01.3499266Z PASS: vm-cne-tier1 has a single active user route for 0.0.0.0/0 via the NVA
+2026-10-30T21:46:01.3527125Z PASS: vm-cne-tier1 has a single active user route for 10.100.0.0/14 via the NVA
+2026-10-30T21:46:01.3554278Z PASS: illegal Azure implemented default route is invalid for vm-cne-tier1.
+2026-10-30T21:46:04.1189238Z PASS: vm-cne-tier2 has a single active user route for 0.0.0.0/0 via the NVA
+2026-10-30T21:46:04.1217189Z PASS: vm-cne-tier2 has a single active user route for 10.100.0.0/14 via the NVA
+2026-10-30T21:46:04.1251845Z PASS: illegal Azure implemented default route is invalid for vm-cne-tier2.
+
+### note: the same deadlock as in (f) and (g), on the same first query; the second attempt succeeded and all nine checks ran. Without the retry this run would have been red on a correct lab, as 39508238981's attempts 1-4 were.
+### note: found while writing detection (b): the assertion checks that the expected UDRs are present and active, not that no more specific route overrides them. A spoke-to-spoke peering would add a VNetPeering route for the other spoke's /16, preferred over the /14 UDR, and all nine checks would still pass. Candidate check for M3 (scenario #3).

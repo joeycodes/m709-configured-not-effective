@@ -1,0 +1,125 @@
+### 2026-10-30 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
+### test: detection (b) stays silent for a connection into tier 0 that the NVA logged, and raises an incident for one it did not log (ADR D21; scenario #3's detection)
+### note: this is the rule's own synthetic trigger, not a run of scenario #3. What (b) sees is a connection that reached a tier-0 NIC from outside tier 0 with no fwd-accept line from the NVA. In this architecture that happens when traffic skips the NVA (spokes peer only with the hub, so removing a UDR breaks the path; a spoke-to-spoke peering would add a /16 route that beats the /14 UDR) or when the NVA accepts it with a rule that does not log. The trigger uses the second; the first is scenario #3 in M3.
+### note: rule by #54 (6db28d0), Terraform apply (observability) 41130805993, 15:24:22-15:25:04. Lab: Terraform apply 41131158372, see (a). tier 1 10.102.0.4, tier 0 10.101.0.4, NVA 10.100.2.4.
+
+### (a) the build: one Azure fault, one leftover
+### runs: Terraform apply 41131158372 (workflow_dispatch, 6db28d0)
+###   attempt 1, 15:27:16-15:33:43, failure: creating azurerm_network_watcher_flow_log.vnet["tier2"] (fl-cne-tier2) returned InternalServerError, "An error occurred.", no detail
+###   attempt 2, 15:39:32-15:40:22, failure: "a resource with the ID .../flowLogs/fl-cne-tier2 already exists - to be managed via Terraform this resource needs to be imported into the State"
+###   attempt 3, 15:44:10-15:45:20, success, after the leftover was deleted by hand (below)
+### cmd (between attempts 2 and 3): az network watcher flow-log list --location canadaeast --query "[].{name:name, state:provisioningState}" -o table
+
+Name           State
+fl-cne-tier2   Failed
+fl-cne-onprem  Succeeded
+fl-cne-tier1   Succeeded
+fl-cne-hub     Succeeded
+fl-cne-tier0   Succeeded
+
+### cmd: az network watcher flow-log delete --location canadaeast --name fl-cne-tier2
+### note: the failed create left a resource in Azure in state Failed that Terraform had not recorded, so the retry collided with it. Deleted rather than imported: importing would adopt a broken resource. No drift results; attempt 3 created it from code. An operation reported as failed had not been without effect; as in R1, Azure's state and Terraform's view differed. For the Week 13 build record.
+### runs: Reachability assertion 41133357875, 15:45:22-15:46:07, success after one retry (Q1 (h)).
+### cmd (about 16:00): NTANetAnalytics | where TimeGenerated > ago(30m) | summarize rows = count() by SubType
+
+SubType        Rows
+FlowLog        236
+StatusMessage  1
+
+### note: Traffic Analytics processing on this build, checked before testing (R1).
+
+### (b) the rule as deployed
+### file: infra/detections/t0_inbound_without_nva_record.kql
+
+NTANetAnalytics
+| where TimeGenerated > ago(30m)
+| where SubType == "FlowLog"
+| where TargetResourceId endswith "/vnet-cne-tier0"
+| where FlowDirection == "Inbound"
+| where FlowStatus == "Allowed"
+| where ipv4_is_in_any_range(SrcIp, "10.100.0.0/14", "10.0.0.0/16")
+| where not(ipv4_is_in_range(SrcIp, "10.101.0.0/16")) and SrcIp != "10.100.2.4"
+| project SrcIp, DestIp, DestPort, AllowedInFlows, FlowStartTime, FlowEndTime
+| join kind=leftanti (
+    Syslog
+    | where HostName == "vm-cne-hub"
+    | where SyslogMessage has "fwd-accept:"
+    | extend SrcIp = extract(@"SRC=(\S+)", 1, SyslogMessage), DestIp = extract(@"DST=(\S+)", 1, SyslogMessage), DestPort = toint(extract(@"DPT=(\d+)", 1, SyslogMessage))
+    | project SrcIp, DestIp, DestPort
+  ) on SrcIp, DestIp, DestPort
+| summarize Count = count(), Flows = sum(AllowedInFlows), FirstSeen = min(FlowStartTime), LastSeen = max(FlowEndTime) by SrcIp, DestIp, DestPort
+
+### file: infra/envs/observability/detections.tf: severity High; query_frequency PT10M; query_period PT1H; trigger GreaterThan 0; tactics DefenseEvasion; techniques T1562.
+### note: sources are those that must cross the NVA by design (other spokes, on-prem); tier 0's own VNet and the NVA itself are excluded, since neither crosses the NVA's forward chain.
+### note: query_period PT1H against the ago(30m) on flows: the NVA's Syslog line is written within a second, the flow row 5 to 15 minutes later ((d)). The flows checked are the last 30 minutes'; the Syslog side reaches back an hour, so a flow's NVA line is still in range.
+### note: limitation: the leftanti join matches on source, destination and port, not time. A logged connection with the same three values inside the window hides a later unlogged one. The test therefore uses port 22 for the logged connection and port 8080 for the unlogged one.
+
+### (c) checked before deployment, against 2026-10-27 data (portal, workspace Logs, 20:00-23:30 UTC, ago(30m) commented out)
+### note: one row returned: 10.103.0.4 -> 10.101.0.4, 22 (S2 step 3, accepted by the NVA through an inserted rule without log, and by the opened NSG). The tier-1 connections of R5 at 14:25, logged by fwd-accept, did not appear.
+
+### (d) the test
+### step 1, a logged connection: tier 1 to tier 0 on 22, baseline ruleset
+### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-tier1 --command-id RunShellScript --scripts 'date -u; for i in 1 2 3; do timeout 3 bash -c "</dev/tcp/10.101.0.4/22" && echo open || echo closed; done'
+
+Fri Oct 30 21:49:16 UTC 2026
+open
+open
+open
+
+### step 2, an unlogged connection: an accept without log inserted at the top of the forward chain, then tier 1 to tier 0 on 8080 (nothing listens)
+### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts 'nft insert rule inet filter forward ip saddr 10.102.0.0/16 ip daddr 10.101.0.0/16 counter accept; nft list chain inet filter forward | head -5'
+
+table inet filter {
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		ip saddr 10.102.0.0/16 ip daddr 10.101.0.0/16 counter packets 0 bytes 0 accept
+		ct state established,related counter packets 10552 bytes 11211890 accept
+
+### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-tier1 --command-id RunShellScript --scripts 'date -u; for i in 1 2 3; do timeout 3 bash -c "</dev/tcp/10.101.0.4/8080" && echo open || echo closed; done'
+
+Fri Oct 30 21:51:25 UTC 2026
+closed
+closed
+closed
+bash: connect: Connection refused   (x3)
+
+### note: refused, not timed out: tier 0 answered with a reset, so the packets arrived.
+### cmd (on the NVA): grep "fwd-accept:" /var/log/kern.log | grep "DST=10.101.0.4" | grep -o "DPT=[0-9]*" | sort | uniq -c
+
+      3 DPT=22
+
+### note: the NVA logged the three connections of step 1 and none of step 2.
+### restore: nft -f /etc/nftables.conf; the forward chain again begins with ct state established,related. Only the NVA was changed; the NSG was not touched, so no apply was needed.
+
+### cmd: NTANetAnalytics | where SubType == 'FlowLog' and TargetResourceId endswith '/vnet-cne-tier0' and FlowDirection == 'Inbound' and SrcIp == '10.102.0.4' and DestPort in (22, 8080) | project TimeGenerated, FlowStartTime, DestPort, FlowStatus, AllowedInFlows, AclRule   (rows of 2026-10-30)
+
+AclRule           AllowedInFlows  DestPort  FlowStartTime             FlowStatus  TimeGenerated
+allowvnetinbound  1               22        2026-10-30T21:49:16.093Z  Allowed     2026-10-30T22:03:40.0619766Z
+allowvnetinbound  3               8080      2026-10-30T21:51:25.034Z  Allowed     2026-10-30T22:03:40.0619766Z
+allowvnetinbound  2               22        2026-10-30T21:49:16.094Z  Allowed     2026-10-30T21:53:47.1588979Z
+
+### note: both connections are Allowed at tier 0 by the same NSG rule; the flow logs cannot tell them apart. Only the NVA's record does. Step 1's three connections arrived in two batches, 4.5 and 14.5 minutes after the connection: Traffic Analytics latency varies by batch.
+### cmd: the rule's query, ago(30m) commented out, last hour: TO FILL (expected: one row, 10.102.0.4 -> 10.101.0.4, 8080, Flows 3; no row for 22)
+
+### (e) the alert and the incident
+### cmd: SecurityAlert | where TimeGenerated > ago(2h) | where AlertName =~ 'T0 inbound without NVA record' | project TimeGenerated, StartTime, EndTime, AlertSeverity
+
+AlertSeverity  EndTime                       StartTime                     TimeGenerated
+High           2026-10-30T22:10:06.3365049Z  2026-10-30T21:10:06.3365049Z  2026-10-30T22:15:10.1135374Z
+
+### cmd: SecurityIncident | where TimeGenerated > ago(2h) | where Title =~ 'T0 inbound without NVA record' | project TimeGenerated, IncidentNumber, Severity, Status
+
+IncidentNumber  Severity  Status  TimeGenerated
+4               High      New     2026-10-30T22:15:14.5833333Z
+
+### note: the window is one hour (PT1H). In the Defender portal the incident shows as "T0 inbound without NVA record", category Defense evasion, priority score "Not set" when seen; the T2->T0 incidents of S2 scored 2.
+### timeline (UTC-6):
+
+### | 15:51:25 | unlogged connection reaches tier 0 (FlowStartTime)        | +0        |
+### | 16:03:40 | row written to NTANetAnalytics (TimeGenerated)            | +12m15s   |
+### | 16:10:06 | first rule run whose window holds the row                 | +18m41s   |
+### | 16:15:10 | alert written to SecurityAlert                            | +23m45s   |
+### | 16:15:14 | incident 4 created                                        | +23m49s   |
+
+### result
+### Detection (b) works end to end: deployed from code, it raised an incident for a connection that reached tier 0 without the NVA logging it, 24 minutes after the connection, and not for an equal connection the NVA had logged. Both were Allowed at the same NIC by the same NSG rule; the difference was visible only by joining the NVA's record to the flow. It inherits the flow logs' latency, and its join is blind to time within the window, which the test had to work around.
