@@ -206,6 +206,22 @@ resource "azurerm_network_security_rule" "gw_allow_azure_out" {
   network_security_group_name = azurerm_network_security_group.onprem["snet-onprem-gw"].name
 }
 
+# Deny Internet traffic from tier0 by default as it is the most restrict zone
+# among three tiers. (R5(e))
+resource "azurerm_network_security_rule" "tier0_deny_out" {
+  name                        = "DenyTier0toInternet"
+  priority                    = 100
+  direction                   = "Outbound"
+  access                      = "Deny"
+  protocol                    = "*"
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefix       = "10.101.0.0/16"
+  destination_address_prefix  = "Internet"
+  resource_group_name         = azurerm_resource_group.lab.name
+  network_security_group_name = azurerm_network_security_group.workload["snet-tier0-workload"].name
+}
+
 resource "azurerm_subnet_network_security_group_association" "workload" {
   for_each = local.workload_subnets
 
