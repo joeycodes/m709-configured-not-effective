@@ -1,0 +1,76 @@
+### 2026-11-05 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
+### test: DNS security policies, one per VNet and with no rules, bring the lab's queries to Azure DNS into DNSQueryLogs in log-cne-observability (ADR D21, amendment of 2026-10-26; the source for detection (c) and scenario #4)
+### note: open question from ADR-021: is a query that matches no rule logged at all? The documentation names Allow, Block and Alert as actions that log and says nothing about unmatched queries. These policies have no rules, so any row answers it.
+### note: built by #59 (bc31a15), infra/envs/lab/dns.tf, with azapi 2.13.0 (Microsoft.Network/dnsResolverPolicies@2025-05-01 and its virtualNetworkLinks child) and one azurerm diagnostic setting per policy (category group allLogs).
+
+### (a) the build: the flow-log fault again
+### runs: Terraform apply 42059246700 (push, bc31a15)
+###   attempt 1, 09:51:39-09:59:15, failure: creating azurerm_network_watcher_flow_log.vnet["hub"] (fl-cne-hub) returned InternalServerError, "An error occurred.", no detail
+###   attempt 2, 10:06:28-10:07:31, success, after the leftover was deleted by hand (below). "Re-run failed jobs" on github.com returned HTTP 500; rerun with gh run rerun --failed (same run ID)
+### cmd (between attempts 1 and 2): az network watcher flow-log delete --location canadaeast --name fl-cne-hub
+### note: the failed create left fl-cne-hub in Azure in state Failed, outside Terraform's state, as in S3 (a). Deleted rather than imported, for the same reason: importing would adopt a broken resource. Attempt 2 created it from code (log, 16:07:23 UTC: "azurerm_network_watcher_flow_log.vnet["hub"]: Creation complete after 12s").
+### note: the same fault as S3 (a) on 2026-10-30, there on fl-cne-tier2. Two cases on two different VNets, so not tied to one VNet; cause unknown. For the Week 13 build record.
+
+### (b) the resources
+### cmd: az resource list -g rg-cne-lab --resource-type Microsoft.Network/dnsResolverPolicies --query "[].name" -o tsv
+
+dnssp-cne-onprem
+dnssp-cne-tier0
+dnssp-cne-hub
+dnssp-cne-tier2
+dnssp-cne-tier1
+
+### cmd: az monitor diagnostic-settings list --resource "$(az resource show -g rg-cne-lab -n dnssp-cne-tier0 --resource-type Microsoft.Network/dnsResolverPolicies --query id -o tsv)" --query "[].name" -o tsv
+
+dns-diag-cne-tier0
+
+### note: five policies, one per VNet. Only the tier-0 policy's diagnostic setting was listed; the rows in (c) from other VNets show theirs work too.
+
+### (c) queries in the workspace
+### test traffic: about 10:10, run-command on vm-cne-tier0 resolving www.microsoft.com and cne-dnstest.example.com (a name that does not exist)
+### cmd (after 10:20): az monitor log-analytics query -w $WS --analytics-query "DNSQueryLogs | where TimeGenerated > ago(1h) | project TimeGenerated, SourceIpAddress, QueryName, ResponseCode, ResolverPolicyRuleAction | take 20" -o table
+
+QueryName                                                                     ResolverPolicyRuleAction    ResponseCode    SourceIpAddress    TableName      TimeGenerated
+----------------------------------------------------------------------------  --------------------------  --------------  -----------------  -------------  ------------------------
+global.handler.control.monitor.azure.com.                                     None                        0               10.100.2.4         PrimaryResult  2026-11-05T16:00:10.104Z
+global.handler.control.monitor.azure.com.                                     None                        0               10.100.2.4         PrimaryResult  2026-11-05T16:00:10.104Z
+cdn.fwupd.org.                                                                None                        0               10.0.1.4           PrimaryResult  2026-11-05T16:02:33.399Z
+cdn.fwupd.org.                                                                None                        0               10.102.0.4         PrimaryResult  2026-11-05T16:03:35.828Z
+umsavclz3gk3rd254bsv.blob.core.windows.net.                                   None                        0               10.101.0.4         PrimaryResult  2026-11-05T16:10:16.409Z
+www.microsoft.com.                                                            None                        0               10.101.0.4         PrimaryResult  2026-11-05T16:10:19.143Z
+cne-dnstest.example.com.regxyh00mmvulmxcfg0hlkx4oe.vx.internal.cloudapp.net.  None                        3               10.101.0.4         PrimaryResult  2026-11-05T16:10:19.175Z
+eb7db6d2-a451-47ed-b547-4dd4f90b4ea1.ods.opinsights.azure.com.                None                        0               10.100.2.4         PrimaryResult  2026-11-05T16:11:38.994Z
+md-hdd-xrqgf3pm4sbl.z39.blob.storage.azure.net.                               None                        0               10.0.1.4           PrimaryResult  2026-11-05T15:54:13.968Z
+umsanhvbtnxgpclhj2bt.blob.core.windows.net.                                   None                        0               10.0.1.4           PrimaryResult  2026-11-05T15:54:27.943Z
+blob.yqb21prdstr03a.store.core.windows.net.                                   None                        0               10.0.0.4           PrimaryResult  2026-11-05T15:55:02.94Z
+_http._tcp.azure.archive.ubuntu.com.                                          None                        3               10.100.2.4         PrimaryResult  2026-11-05T15:54:13.588Z
+cloud-mirror-lb.canadaeast.cloudapp.azure.com.                                None                        0               10.100.2.4         PrimaryResult  2026-11-05T15:54:13.587Z
+motd.ubuntu.com.                                                              None                        0               10.100.2.4         PrimaryResult  2026-11-05T15:54:13.854Z
+motd.ubuntu.com.                                                              None                        0               10.100.2.4         PrimaryResult  2026-11-05T15:54:13.849Z
+blob.yq1prdstr15c.store.core.windows.net.                                     None                        0               10.100.2.4         PrimaryResult  2026-11-05T15:54:14.041Z
+_http._tcp.azure.archive.ubuntu.com.                                          None                        3               10.100.2.4         PrimaryResult  2026-11-05T15:54:28.377Z
+azure.archive.ubuntu.com.                                                     None                        0               10.100.2.4         PrimaryResult  2026-11-05T15:54:28.377Z
+azure.archive.ubuntu.com.                                                     None                        0               10.100.2.4         PrimaryResult  2026-11-05T15:54:28.376Z
+cloud-mirror-lb.canadaeast.cloudapp.azure.com.                                None                        0               10.100.2.4         PrimaryResult  2026-11-05T15:54:28.376Z
+
+### note: ResolverPolicyRuleAction is None on every row: queries that match no rule are logged. The open question in ADR-021 is answered; logging needs no traffic rule.
+### note: sources in these rows: 10.100.2.4 (NVA), 10.101.0.4 (tier 0), 10.102.0.4 (tier 1), 10.0.0.4 and 10.0.1.4 (on-prem). Tier 2 is not among them; take 20 is a sample, not a count. (d) counts by source.
+### note: the tier-0 rows at 16:10:16-16:10:19 are the test. The made-up name came back NXDOMAIN (ResponseCode 3) with the VNet's DNS search suffix appended (...vx.internal.cloudapp.net); the bare name is not among these rows. The blob.core.windows.net lookup 3 seconds earlier fell inside the same run-command, most likely the extension itself; not traced (see E1 (d) on 20.60.142.33).
+### note: for detection (c): ordinary platform traffic already looks like what (c) is meant to find. The search suffix adds more than 50 characters to every failed lookup, and storage, disk and workspace endpoints carry random-looking labels (umsavclz3gk3rd254bsv, md-hdd-xrqgf3pm4sbl, the workspace ID). A threshold on name length or whole-name entropy would fire on these. (c) has to drop the search suffix and Azure's own zones first, and score the labels under one parent domain over time rather than single names.
+
+### (d) every VNet, counted
+### cmd: az monitor log-analytics query -w $WS --analytics-query "DNSQueryLogs | where TimeGenerated > ago(2h) | summarize rows = count() by SourceIpAddress | order by SourceIpAddress asc" -o table
+
+SourceIpAddress    TableName      Rows
+-----------------  -------------  ------
+10.0.0.4           PrimaryResult  43
+10.0.1.4           PrimaryResult  24
+10.100.2.4         PrimaryResult  243
+10.101.0.4         PrimaryResult  43
+10.102.0.4         PrimaryResult  39
+10.103.0.4         PrimaryResult  33
+
+### note: all six VMs in all five VNets appear: on-prem (10.0.0.4, 10.0.1.4), hub NVA, tier 0, tier 1, tier 2. The NVA makes the most (243), about six times any other VM. It is the only VM with the AMA, whose endpoints appear in (c) (global.handler.control.monitor.azure.com, the workspace's ods endpoint); not broken down further.
+
+### result
+### With no rules, the DNS security policies log the lab's queries to Azure DNS into DNSQueryLogs, rule action None, from all five VNets. No traffic rule is needed. The same rows set the baseline detection (c) must exclude: search-suffixed NXDOMAINs and Azure endpoints with random labels.
