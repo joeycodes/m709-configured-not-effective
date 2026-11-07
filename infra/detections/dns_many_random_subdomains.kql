@@ -1,0 +1,48 @@
+// Detects DNS queries from one source IP address under one parent domain
+// (its last two labels) with many different long, random subdomains: the
+// pattern of data encoded into DNS names (DNS tunnelling, scenario #4).
+//
+// The main condition is the number of different subdomains per source and
+// parent domain. Length and entropy are secondary: they drop short or
+// repetitive names, but a long name made of words scores about as high as a
+// random one (3.9 for the AMA endpoints), so they cannot decide on their own.
+//
+// Exclusions:
+// - Microsoft zones (opinsights, storage, core.windows.net, monitor): a tunnel
+//   needs the attacker to run the parent domain's authoritative name server,
+//   and Microsoft runs these, so they cannot carry one. Their names are random
+//   by design (storage accounts, disks, the workspace ID) and would match.
+// - .internal.cloudapp.net: the VNet's DNS search suffix. A failed lookup is
+//   retried with it appended, but the bare name is logged first, so dropping
+//   the suffixed copy loses no query (evidence D1).
+//
+// Limits:
+// - Parent = last two labels: a suffix such as co.uk is split wrongly, and all
+//   *.azure.com names from one source are counted together.
+// - Entropy is computed over the whole subdomain, dots included.
+// - Threshold: on 2026-11-05 the baseline was at most 3 qualifying subdomains
+//   per source and parent over 2 hours. A tunnel sending 10 names or fewer
+//   an hour is missed.
+// - Only queries to Azure DNS are logged. DNS sent straight to an outside
+//   server is not in DNSQueryLogs; it crosses the NVA and the flow logs.
+DNSQueryLogs
+| extend CleanQueryName = trim_end(@"\.+", QueryName)
+| where not(
+  CleanQueryName endswith ".opinsights.azure.com"
+  or CleanQueryName endswith ".storage.azure.net"
+  or CleanQueryName endswith ".core.windows.net"
+  or CleanQueryName endswith ".monitor.azure.com"
+  or CleanQueryName endswith ".internal.cloudapp.net")
+| extend Parent = extract(@'([^.]+\.[^.]+)$', 1, CleanQueryName)
+| extend Sub = trim_end(@"\.+", substring(CleanQueryName, 0, strlen(CleanQueryName) - strlen(Parent)))
+| where strlen(Sub) >= 25
+| distinct SourceIpAddress, Parent, Sub
+| extend Chars = extract_all(@"(.)", Sub)
+| mv-expand Chars to typeof(string)
+| summarize N = count() by SourceIpAddress, Parent, Sub, Chars
+| extend P = todouble(N) / strlen(Sub)
+| summarize Entropy = -sum(P * log2(P)) by SourceIpAddress, Parent, Sub
+| where Entropy >= 3.3
+| summarize Queries = count(), Distinct = dcount(Sub) by SourceIpAddress, Parent
+| where Distinct > 10
+
