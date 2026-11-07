@@ -39,3 +39,18 @@ resource "azurerm_sentinel_alert_rule_scheduled" "t0_inbound_without_nva_record"
   tactics                    = ["DefenseEvasion"]
   techniques                 = ["T1562"]
 }
+
+resource "azurerm_sentinel_alert_rule_scheduled" "dns_many_random_subdomains" {
+  name                       = "dns-many-random-subdomains"
+  description                = "Many different long, high-entropy subdomains were queried under one parent domain from one source, the pattern of data encoded into DNS names (scenario #4). Check whether the parent domain is attacker-controlled. The number of distinct subdomains is the main signal; see infra/detections/dns_many_random_subdomains.kql for the exclusions and the known blind spot (low-and-slow below the threshold)."
+  log_analytics_workspace_id = azurerm_sentinel_log_analytics_workspace_onboarding.this.workspace_id
+  display_name               = "DNS Many Random Subdomains"
+  severity                   = "High"
+  query                      = file("${path.module}/../../detections/dns_many_random_subdomains.kql")
+  query_frequency            = "PT10M"
+  query_period               = "PT1H"
+  trigger_operator           = "GreaterThan"
+  trigger_threshold          = 0
+  tactics                    = ["CommandAndControl", "Exfiltration"]
+  techniques                 = ["T1071", "T1048"]
+}
