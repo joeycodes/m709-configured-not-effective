@@ -1,6 +1,6 @@
 # ADR-021: Telemetry for the two mandatory scenarios: native tables, Sentinel from week 8
 
-**Status:** Accepted; partly built (flow logs, NVA log, Activity Log); DNS deferred to M3 week 9, see Amendment
+**Status:** Accepted; built. Flow logs, NVA log and Activity Log in M2; DNS in M3 week 9, see Amendment
 **Date:** 2026-10-17
 **Milestone:** M2 (week 7)
 
@@ -96,3 +96,7 @@ rows from the lab, recorded as evidence.
 - Still open: whether a traffic rule is needed for queries to be logged (the
   documentation ties logging to rule actions without saying that unmatched
   queries go unlogged); tested first with no rule, then with a catch-all rule.
+- Answered (2026-11-05, evidence D1): no traffic rule is needed. With no rules,
+  the policies log every VNet's queries to Azure DNS, with
+  `ResolverPolicyRuleAction` `None`. Built as one policy per VNet (#59), so
+  each carries its zone tag.

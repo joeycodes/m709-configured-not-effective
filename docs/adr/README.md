@@ -28,3 +28,4 @@ limitations L1 to L3.
 | D19 | The on-premises site: IPsec on the NAT-T port, eBGP, and what the M1 gate can claim | [ADR-019-onprem-site.md](ADR-019-onprem-site.md) |
 | D20 | Policy as code: two rule libraries, tested rules, and what a plan can prove | [ADR-020-policy-as-code.md](ADR-020-policy-as-code.md) |
 | D21 | Telemetry for the two mandatory scenarios: native tables, Sentinel from week 8 | [ADR-021-telemetry.md](ADR-021-telemetry.md) |
+| D23 | M3 scope and method: four mandatory scenarios, pre-registered, Atomic Red Team first | [ADR-023-m3-scope-and-method.md](ADR-023-m3-scope-and-method.md) |
