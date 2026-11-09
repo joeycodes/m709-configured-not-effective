@@ -1,6 +1,6 @@
 # ADR-023: M3 scope and method: four mandatory scenarios, pre-registered, Atomic Red Team first
 
-**Status:** Accepted
+**Status:** Accepted; amended 2026-11-09 (tooling), see Amendment
 **Date:** 2026-11-06
 **Milestone:** M3 (week 9)
 
@@ -91,3 +91,17 @@ and closed tier 0's internet egress, a gap found in M2 (R5 (e); #60, E1).
 `PREREGISTRATION.md` has an entry for each scenario, committed before that
 scenario's first run (git log). The matrix has both halves filled for each of
 the four, citing evidence.
+
+**Amendment (2026-11-09): all four scenarios run manually**
+- The Atomic Red Team tests for each technique were checked:
+  - [T1021.004](https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1021.004/T1021.004.md) (#1): Windows only.
+  - [T1071.004](https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1071.004/T1071.004.md) (#4): Windows only.
+  - [T1552.005](https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1552.005/T1552.005.md) (#6): azure-ad only.
+  - T1562 (#3): no tests of its own; its subtechniques do not cover a routing
+    bypass.
+- No test runs on the lab's Ubuntu VMs, so all four scenarios run manually
+  through run-command, as the Decision allows. Each runbook's Tooling field
+  records this.
+- stratus-red-team was also considered for #6. Its Azure coverage is small,
+  and it builds its own resources outside this repository's Terraform. Not
+  used.
