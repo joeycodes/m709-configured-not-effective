@@ -65,7 +65,7 @@ that way from the start. The full index is in [README.md](README.md).
 
 ## Known limitations
 
-These are properties of the bootstrap as built, carried forward into the thesis
+These are properties of the bootstrap as built, carried forward into the report's
 limitations section.
 
 **L1. Pull request and main share one identity.**

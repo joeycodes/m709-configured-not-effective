@@ -56,7 +56,7 @@ managed VPN Gateway in one respect, below.
   rebuild half of the gate is met by L1.
 - **Validation window #1 is dropped.** It would test whether the tunnel design
   holds on the managed VPN Gateway: a connectivity product, not a security
-  control. The thesis tests controls. The window is not a success criterion in
+  control. The project tests controls. The window is not a success criterion in
   PROJECT.md §8, needs paid resources and its own routing design (a UDR on
   GatewaySubnet to keep inspection in the path), and the schedule is behind.
   Validation window #2 (managed Azure Firewall) tests a control and is not

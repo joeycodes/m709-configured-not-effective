@@ -13,7 +13,7 @@ This document covers the how: architecture, network design, IaC, CI/CD, detectio
 4. For failures that go undetected, engineer detections as code and re-test until they fire.
 5. Keep it reproducible and cheap (free-tier core, paid services only in short windows).
 
-Non-goal: a novel detection algorithm or a generalizable study. This is an MSc-level design, implementation, and evaluation.
+Non-goal: a novel detection algorithm or a generalizable study.
 
 ---
 

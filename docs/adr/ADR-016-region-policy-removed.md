@@ -107,7 +107,7 @@ Three consequences for the method, carried into M3:
    still denies", not "it was configured". Only the first can be answered by an
    attempt that is expected to fail.
 
-For the thesis, this sits one step beyond the project's premise. *Configured does
+For the report, this sits one step beyond the project's premise. *Configured does
 not mean effective* assumes the configuration is still there. Here the
 configuration was removed by a party with the authority to do so, for reasons
 unrelated to security, and every document describing the environment continued to
