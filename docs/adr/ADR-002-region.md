@@ -21,8 +21,7 @@ No Canadian region is available. The policy is assigned at
 cannot be worked around from within the subscription.
 
 **Decision**
-`westus` is used for all resources. It is the allowed region geographically
-closest to the author (Edmonton, Alberta).
+`westus` is used for all resources.
 
 **Consequences**
 - (+) The constraint is documented evidence, not an assumption: the policy

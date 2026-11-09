@@ -41,10 +41,6 @@ The baseline is deliberately **one cloud**. Depth of adversarial validation is t
 
 Terraform · GitHub Actions (OIDC, no long-lived keys) · Open Policy Agent · Azure (VNet, VPN Gateway, Azure Firewall, Microsoft Sentinel, Network Watcher) · FRRouting + StrongSwan (on-premises edge)
 
-## Status
-
-Work in progress. Academic capstone for the Master of Science in Internetworking (MINT 709), University of Alberta.
-
 ## License
 
 MIT

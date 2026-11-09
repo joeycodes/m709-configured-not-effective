@@ -135,7 +135,7 @@ diff.
   the lab on one architecture and, incidentally, in Canada — a consequence of
   the choice rather than a reason for it.
 
-**Thesis note**
+**Report note**
 None of the three gates is visible to the configuration, to `terraform plan`, or
 to the policy gate. Both checks passed on a topology that could not be deployed
 at all, in any permitted region. The failure surfaced only at apply, from the

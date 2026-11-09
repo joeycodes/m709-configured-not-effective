@@ -34,7 +34,7 @@ The exception is conditional, not permanent. It holds only while no VM has an
 inbound exposure. Giving the hub NVA a public IP for the IPsec tunnel changes
 that premise, and this decision is to be revisited in the same change.
 
-The wider point belongs in the thesis. A static policy gate evaluates whether a
+The wider point belongs in the report. A static policy gate evaluates whether a
 property is set, not whether setting it improves security in the architecture it
 is set in. Here the two diverge, and the divergence is only visible to a reviewer
 who knows how the environment is administered. An exception is therefore only as
