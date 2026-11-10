@@ -45,6 +45,7 @@
   | where ipv4_is_in_range(DestIp, "10.101.0.0/16")
   | where DestPort == 22
   | where TimeGenerated > ago(30m)
+  | project FlowStartTime, SrcIp, DestIp, DestPort, L4Protocol, FlowDirection, FlowStatus, AclRule, PacketsSrcToDest, PacketsDestToSrc, TimeGenerated
 ```
 
 **Signal #2**:
@@ -59,6 +60,7 @@
   | where ipv4_is_in_range(DestIp, "10.101.0.0/16")
   | where DestPort == 22
   | where TimeGenerated > ago(30m)
+  | project FlowStartTime, SrcIp, DestIp, DestPort, L4Protocol, FlowDirection, FlowStatus, AclRule, PacketsSrcToDest, PacketsDestToSrc, TimeGenerated
 ```
 
 **Signal #3**:
@@ -86,6 +88,7 @@
   | where FlowStatus == "Allowed"
   | where ipv4_is_in_range(SrcIp, "10.103.0.0/16")
   | where TimeGenerated > ago(30m)
+  | project FlowStartTime, SrcIp, DestIp, DestPort, L4Protocol, FlowDirection, FlowStatus, AclRule, PacketsSrcToDest, PacketsDestToSrc, TimeGenerated
 ```
 
 ## Cleanup
