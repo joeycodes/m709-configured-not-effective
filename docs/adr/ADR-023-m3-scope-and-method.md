@@ -1,6 +1,6 @@
 # ADR-023: M3 scope and method: four mandatory scenarios, pre-registered, Atomic Red Team first
 
-**Status:** Accepted; amended 2026-11-09 (tooling), see Amendment
+**Status:** Accepted; amended 2026-11-09 (tooling) and 2026-11-10 (runbooks, #9), see Amendments
 **Date:** 2026-11-06
 **Milestone:** M3 (week 9)
 
@@ -58,8 +58,8 @@ and closed tier 0's internet egress, a gap found in M2 (R5 (e); #60, E1).
   the first attempt to incident creation. Results go into the matrix
   (TECHNICAL-DESIGN §8).
 - **Each detection is tested with a synthetic trigger first** (S2, S3, S4).
-- **Post-remediation columns come from the final run** in week 12, on a fresh
-  build from `main` after the freeze.
+- **A final run** in week 12 runs every scenario once on a fresh build from
+  `main` after the freeze. Its results go into the report.
 
 **Consequences**
 - (−) #4 does not show that data can leave. That would need a name server the
@@ -105,3 +105,12 @@ the four, citing evidence.
 - stratus-red-team was also considered for #6. Its Azure coverage is small,
   and it builds its own resources outside this repository's Terraform. Not
   used.
+
+**Amendment (2026-11-10): runbooks and evidence; scenario #9**
+- Each scenario's runbook in `attack/scenarios/` holds its steps, commands
+  and queries. The results of each run are recorded separately under
+  `docs/evidence/m3/`.
+- #9 is added as optional: internal scanning from the tier-2 (assume-breach)
+  host (T1046). Nothing today reliably monitors or alerts on it. The plan is
+  to write a detection for this behaviour that raises a Sentinel alert once
+  a threshold is reached.

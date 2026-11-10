@@ -193,6 +193,7 @@ Principle: keep the judgment in declarative, version-controlled rules; use a Fun
 | 6 | Cloud credential abuse: SSRF → instance metadata → steal role → move via cloud APIs | T1552.005 (Cloud Instance Metadata API) | identity, not network | Activity Log / control-plane anomalies | (recommended) |
 | 7 | Attack from the on-prem side of the VPN (over-trusted tunnel) | T1199 (Trusted Relationship) | segmentation across the tunnel | flow-log at hub / Tier boundaries | |
 | 8 | Detection evasion: low-and-slow via allowed channels | TA0005 (Defense Evasion) | the detections themselves | (measures what produces no signal) | |
+| 9 | Internal network discovery from Tier-2 | T1046 (Network Service Discovery) | detection of blocked attempts | NVA drop log entries for many Tier-0 addresses and ports | |
 
 Tooling: CALDERA, Atomic Red Team, and cloud-specific tooling such as stratus-red-team, supplemented by manual technique. Scenario definitions and runbooks live in `attack/scenarios/`. Under schedule pressure, the mandatory set is #1 and #4; scenario #6 is recommended because it is a control-plane attack that network segmentation cannot stop, which makes it a strong demonstration of the "configured but ineffective" thesis.
 
