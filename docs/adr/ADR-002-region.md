@@ -1,13 +1,13 @@
 # ADR-002: Region: `westus`
 
-Decision D2. Written during bootstrap and M1 as a section of
+Written during bootstrap and M1 as a section of
 [ADR-000-bootstrap.md](ADR-000-bootstrap.md), which keeps the shared context
 (constraints and the staged-hardening principle) and the known limitations
 L1 to L3. Index: [README.md](README.md).
 
 ---
 
-> Superseded by D16. The policy this decision was constrained by no longer
+> Superseded by ADR-016. The policy this decision was constrained by no longer
 > exists; it was removed automatically when the subscription offer changed.
 
 **Context**

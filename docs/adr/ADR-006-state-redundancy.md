@@ -1,6 +1,6 @@
 # ADR-006: Redundancy `Standard_LRS`, with versioning and soft delete
 
-Decision D6. Written during bootstrap and M1 as a section of
+Written during bootstrap and M1 as a section of
 [ADR-000-bootstrap.md](ADR-000-bootstrap.md), which keeps the shared context
 (constraints and the staged-hardening principle) and the known limitations
 L1 to L3. Index: [README.md](README.md).

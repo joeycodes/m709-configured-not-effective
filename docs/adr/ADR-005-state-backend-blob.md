@@ -1,6 +1,6 @@
 # ADR-005: State backend: Azure Blob Storage
 
-Decision D5. Written during bootstrap and M1 as a section of
+Written during bootstrap and M1 as a section of
 [ADR-000-bootstrap.md](ADR-000-bootstrap.md), which keeps the shared context
 (constraints and the staged-hardening principle) and the known limitations
 L1 to L3. Index: [README.md](README.md).
@@ -24,7 +24,7 @@ Locking uses the native blob lease.
 - (+) Reuses the Entra ID identity system already required for deployment;
   no second credential system is introduced.
 - (+) Blob lease provides locking before the write, not conflict detection after it.
-- (−) The storage account is reachable from the public internet (see D7).
+- (−) The storage account is reachable from the public internet (see ADR-007).
 
 **Alternatives considered**
 - *Local state* — fails on ephemeral runners and on any second operator.

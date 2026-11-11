@@ -4,7 +4,7 @@
 **Date:** 2026-11-06
 **Milestone:** M3 (week 9)
 
-Decision D23. Index of all decisions: [README.md](README.md).
+Index of all decisions: [README.md](README.md).
 
 ---
 

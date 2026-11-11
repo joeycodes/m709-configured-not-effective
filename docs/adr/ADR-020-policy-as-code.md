@@ -1,6 +1,6 @@
 # ADR-020: Policy as code: two rule libraries, tested rules, and what a plan can prove
 
-Decision D20. Written during bootstrap and M1 as a section of
+Written during bootstrap and M1 as a section of
 [ADR-000-bootstrap.md](ADR-000-bootstrap.md), which keeps the shared context
 (constraints and the staged-hardening principle) and the known limitations
 L1 to L3. Index: [README.md](README.md).
@@ -8,7 +8,7 @@ L1 to L3. Index: [README.md](README.md).
 ---
 
 **Context**
-D13 put Checkov in front of every pull request. Checkov's library describes
+ADR-013 put Checkov in front of every pull request. Checkov's library describes
 misconfigurations common to any Azure estate; it knows nothing of this lab's
 design. The properties that make the design what it is — which zone a resource
 belongs to, that tier 0 has no public address, that the spokes reach each other

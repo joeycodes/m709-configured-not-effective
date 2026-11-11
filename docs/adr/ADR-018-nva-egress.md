@@ -1,6 +1,6 @@
 # ADR-018: Egress through the NVA; a persistent tier-2 → tier-0 deny
 
-Decision D18. Written during bootstrap and M1 as a section of
+Written during bootstrap and M1 as a section of
 [ADR-000-bootstrap.md](ADR-000-bootstrap.md), which keeps the shared context
 (constraints and the staged-hardening principle) and the known limitations
 L1 to L3. Index: [README.md](README.md).
@@ -8,7 +8,7 @@ L1 to L3. Index: [README.md](README.md).
 ---
 
 **Context**
-After D15 the tiers were segmented from each other but each still reached the
+After ADR-015 the tiers were segmented from each other but each still reached the
 internet directly through Azure's default route, outside any inspection.
 TECHNICAL-DESIGN.md requires the hub to be the only path to the internet. The
 tier-2 → tier-0 deny also existed only as a rule inserted by hand during a test

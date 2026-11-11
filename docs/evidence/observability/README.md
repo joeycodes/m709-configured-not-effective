@@ -1,7 +1,7 @@
 # Observability layer evidence
 
 Environment: `canadaeast`, resource group `rg-cne-observability`, first applied
-by CI on 2026-10-05 (2026-10-06 03:58 UTC). Decision record: ADR D17.
+by CI on 2026-10-05 (2026-10-06 03:58 UTC). Decision record: ADR-017.
 File headers carry the local date; timestamps inside the files are UTC.
 
 ## Assertions
@@ -18,7 +18,7 @@ File headers carry the local date; timestamps inside the files are UTC.
 
 EV-OBS-03 is the one that matters: EV-OBS-01 and EV-OBS-02 say the export is configured, EV-OBS-03 says it
 works. It also confirms the export is not retroactive — nothing before the apply
-is present, so the policy deletion recorded in D16 is not in the workspace.
+is present, so the policy deletion recorded in ADR-016 is not in the workspace.
 
 The same table holds an independent record of the M1 drift test (EV-M1-15 to EV-M1-17). The
 network-interface writes show the CI identity creating the NICs at 03:59, a

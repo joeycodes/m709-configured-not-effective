@@ -1,13 +1,13 @@
 # ADR-003: Compute capacity: 6 vCPU, fixed
 
-Decision D3. Written during bootstrap and M1 as a section of
+Written during bootstrap and M1 as a section of
 [ADR-000-bootstrap.md](ADR-000-bootstrap.md), which keeps the shared context
 (constraints and the staged-hardening principle) and the known limitations
 L1 to L3. Index: [README.md](README.md).
 
 ---
 
-> Superseded by D15. The vCPU cap was not the binding limit, and the
+> Superseded by ADR-015. The vCPU cap was not the binding limit, and the
 > attribution of the rejected quota requests below is corrected there.
 
 **Context**

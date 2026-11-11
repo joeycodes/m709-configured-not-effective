@@ -1,6 +1,6 @@
 # ADR-010: Federated credential subject: `ref:refs/heads/main`
 
-Decision D10. Written during bootstrap and M1 as a section of
+Written during bootstrap and M1 as a section of
 [ADR-000-bootstrap.md](ADR-000-bootstrap.md), which keeps the shared context
 (constraints and the staged-hardening principle) and the known limitations
 L1 to L3. Index: [README.md](README.md).
@@ -8,7 +8,7 @@ L1 to L3. Index: [README.md](README.md).
 ---
 
 **Context**
-The `subject` claim is the entire security boundary of D9: it is matched
+The `subject` claim is the entire security boundary of ADR-009: it is matched
 character-for-character, and an attacker cannot forge it because GitHub sets it
 from the repository actually executing the workflow.
 
@@ -51,7 +51,7 @@ Credential definitions are archived in `docs/adr/assets/`.
 
 **Alternatives considered**
 - *`environment:production`* — stronger, and the intended end state. Deferred under
-  the staged-hardening principle; see D11. Note that adopting it requires
+  the staged-hardening principle; see ADR-011. Note that adopting it requires
   *removing* `gh-main`: while both exist, the weaker subject still matches.
 
 **Open item — verify before the first pipeline run**

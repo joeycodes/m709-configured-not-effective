@@ -1,6 +1,6 @@
 # ADR-016: The region policy was removed by an offer change, not by a decision
 
-Decision D16. Written during bootstrap and M1 as a section of
+Written during bootstrap and M1 as a section of
 [ADR-000-bootstrap.md](ADR-000-bootstrap.md), which keeps the shared context
 (constraints and the staged-hardening principle) and the known limitations
 L1 to L3. Index: [README.md](README.md).
@@ -8,7 +8,7 @@ L1 to L3. Index: [README.md](README.md).
 ---
 
 **Context**
-D2 recorded that deployment regions were restricted to five locations by a
+ADR-002 recorded that deployment regions were restricted to five locations by a
 subscription-scoped Azure Policy assignment, and chose `westus` as the closest
 permitted one. That constraint no longer exists. It was not lifted deliberately.
 
@@ -33,14 +33,14 @@ Three things follow from that sequence.
 The control was genuinely external. The author holds `Owner`, but both attempts
 to modify the assignment were rejected with `InvalidPolicyAssignmentName` — the
 name may not begin with `sys.`. This is the one control in the environment that
-the author could not change, which is why D2 treated it as fixed. That reading
+the author could not change, which is why ADR-002 treated it as fixed. That reading
 was correct at the time.
 
 It was removed by a billing operation. The delete was issued by the same
 application identity that created it, minutes after the subscription moved from
 Azure for Students to pay-as-you-go. No one asked for it, nothing in the
 repository changed, and no notification was received. The upgrade was undertaken
-to obtain VM sizes (D15); the region restriction disappearing was a side effect
+to obtain VM sizes (ADR-015); the region restriction disappearing was a side effect
 that was neither intended nor announced.
 
 The removal was discovered by accident. It surfaced only because a deployment to
@@ -50,9 +50,9 @@ detected it otherwise: the policy gate checks configuration in the repository,
 the restriction still held.
 
 **Decision**
-D2 is superseded. Region selection is no longer constrained by policy, and the
+ADR-002 is superseded. Region selection is no longer constrained by policy, and the
 region is chosen on the criteria that actually bind: SKU availability and
-per-region quota (D15), both of which are region-specific and were verified in
+per-region quota (ADR-015), both of which are region-specific and were verified in
 each candidate before the change. The lab moves to `canadaeast`, which is the
 only examined region where the required sizes are available, in quota and
 priced. `canadacentral` — larger, zone-redundant and closer — refuses every size
@@ -60,14 +60,14 @@ examined, so the choice was made by the platform's allocation policy rather than
 by any property of the design.
 
 The control is not reinstated. A self-assigned equivalent would be a control the
-author can remove at will, which is a different thing from the one D2 described
+author can remove at will, which is a different thing from the one ADR-002 described
 and would misrepresent the environment. If a location policy is wanted later, it
 is added deliberately, as its own decision, and tested as one.
 
 **Consequences**
 - (+) The region is now a free choice, which removes the constraint that pushed
   the lab away from Canadian regions.
-- (−) Everything D2 relied on has to be re-verified in the new region: SKU
+- (−) Everything ADR-002 relied on has to be re-verified in the new region: SKU
   availability, `Total Regional vCPUs`, and the availability of the managed
   services the M2 and M3 validation windows need.
 - (−) An audit trail existed but did not reach anyone. The event is in the
@@ -77,7 +77,7 @@ is added deliberately, as its own decision, and tested as one.
 - The same mechanism can act again. Anything created with the subscription
   (`assignmentType: System`) is owned by the platform, not by this project, and
   can be changed or removed by it without a change to the repository.
-- (+) The layer separation of D12 held under a change it was never designed for.
+- (+) The layer separation of ADR-012 held under a change it was never designed for.
   The lab is rebuilt in a different region while the state backend, the storage
   account and the data-plane role assignments stay where they are: the region is
   a property of the ephemeral layer alone. The backend is deliberately left in
@@ -86,13 +86,13 @@ is added deliberately, as its own decision, and tested as one.
   data-plane access and migrating the file that defines the teardown boundary —
   risk with nothing bought. The platform's own `NetworkWatcherRG` follows the
   lab: a second watcher resource appears for the new region, outside the state
-  and outside the teardown, as D12 predicts of anything Terraform did not
+  and outside the teardown, as ADR-012 predicts of anything Terraform did not
   create.
 
 **Method note**
 This is the first control in the project that was verified, recorded, and then
 silently stopped being true. The distinction it forces is between *verified once*
-and *verified now*: D13 established the policy gate by negative test at bootstrap,
+and *verified now*: ADR-013 established the policy gate by negative test at bootstrap,
 and that evidence says nothing about today.
 
 Three consequences for the method, carried into M3:

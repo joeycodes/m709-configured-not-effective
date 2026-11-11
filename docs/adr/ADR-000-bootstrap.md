@@ -36,30 +36,30 @@ explicit milestone, not as an open intention.
 
 ## Decisions
 
-The decisions D1 to D20 were first recorded as sections of this file. Each is
-now a file of its own, keeping its number; from D21 on, decisions are written
+The decisions ADR-001 to ADR-020 were first recorded as sections of this file. Each is
+now a file of its own, keeping its number; from ADR-021 on, decisions are written
 that way from the start. The full index is in [README.md](README.md).
 
-- D1: [The state backend is created manually, outside Terraform](ADR-001-state-backend-manual.md)
-- D2: [Region: `westus`](ADR-002-region.md)
-- D3: [Compute capacity: 6 vCPU, fixed](ADR-003-compute-capacity.md)
-- D4: [Resource providers registered explicitly](ADR-004-resource-providers.md)
-- D5: [State backend: Azure Blob Storage](ADR-005-state-backend-blob.md)
-- D6: [Redundancy `Standard_LRS`, with versioning and soft delete](ADR-006-state-redundancy.md)
-- D7: [Shared key authentication disabled](ADR-007-shared-key-disabled.md)
-- D8: [RBAC split across control plane and data plane](ADR-008-rbac-split.md)
-- D9: [CI authentication: workload identity federation, no client secret](ADR-009-ci-workload-identity.md)
-- D10: [Federated credential subject: `ref:refs/heads/main`](ADR-010-federated-credential-subject.md)
-- D11: [Manual approval gate deferred](ADR-011-approval-gate-deferred.md)
-- D12: [Tagging and lifecycle separation](ADR-012-tagging-lifecycle.md)
-- D13: [Policy gate verified by negative test](ADR-013-policy-gate-negative-test.md)
-- D14: [Documented exception: VM extension operations stay enabled](ADR-014-extension-operations-exception.md)
-- D15: [Compute capacity revised after the subscription offer change](ADR-015-compute-capacity-revised.md)
-- D16: [The region policy was removed by an offer change, not by a decision](ADR-016-region-policy-removed.md)
-- D17: [A persistent observability layer, in its own state](ADR-017-observability-layer.md)
-- D18: [Egress through the NVA; a persistent tier-2 → tier-0 deny](ADR-018-nva-egress.md)
-- D19: [The on-premises site: IPsec on the NAT-T port, eBGP, and what the M1 gate can claim](ADR-019-onprem-site.md)
-- D20: [Policy as code: two rule libraries, tested rules, and what a plan can prove](ADR-020-policy-as-code.md)
+- ADR-001: [The state backend is created manually, outside Terraform](ADR-001-state-backend-manual.md)
+- ADR-002: [Region: `westus`](ADR-002-region.md)
+- ADR-003: [Compute capacity: 6 vCPU, fixed](ADR-003-compute-capacity.md)
+- ADR-004: [Resource providers registered explicitly](ADR-004-resource-providers.md)
+- ADR-005: [State backend: Azure Blob Storage](ADR-005-state-backend-blob.md)
+- ADR-006: [Redundancy `Standard_LRS`, with versioning and soft delete](ADR-006-state-redundancy.md)
+- ADR-007: [Shared key authentication disabled](ADR-007-shared-key-disabled.md)
+- ADR-008: [RBAC split across control plane and data plane](ADR-008-rbac-split.md)
+- ADR-009: [CI authentication: workload identity federation, no client secret](ADR-009-ci-workload-identity.md)
+- ADR-010: [Federated credential subject: `ref:refs/heads/main`](ADR-010-federated-credential-subject.md)
+- ADR-011: [Manual approval gate deferred](ADR-011-approval-gate-deferred.md)
+- ADR-012: [Tagging and lifecycle separation](ADR-012-tagging-lifecycle.md)
+- ADR-013: [Policy gate verified by negative test](ADR-013-policy-gate-negative-test.md)
+- ADR-014: [Documented exception: VM extension operations stay enabled](ADR-014-extension-operations-exception.md)
+- ADR-015: [Compute capacity revised after the subscription offer change](ADR-015-compute-capacity-revised.md)
+- ADR-016: [The region policy was removed by an offer change, not by a decision](ADR-016-region-policy-removed.md)
+- ADR-017: [A persistent observability layer, in its own state](ADR-017-observability-layer.md)
+- ADR-018: [Egress through the NVA; a persistent tier-2 → tier-0 deny](ADR-018-nva-egress.md)
+- ADR-019: [The on-premises site: IPsec on the NAT-T port, eBGP, and what the M1 gate can claim](ADR-019-onprem-site.md)
+- ADR-020: [Policy as code: two rule libraries, tested rules, and what a plan can prove](ADR-020-policy-as-code.md)
 
 ---
 
@@ -106,7 +106,7 @@ environment, and is stated as such.
 GitHub-hosted runners have dynamic egress addresses, so network-level restriction
 of the storage account would break CI. Defence rests on the data plane instead:
 Entra ID authentication, explicit data-plane RBAC, and shared key access disabled
-(D7, D8). Narrowing this would require self-hosted runners or a service-tag-based
+(ADR-007, ADR-008). Narrowing this would require self-hosted runners or a service-tag-based
 rule.
 
 ---

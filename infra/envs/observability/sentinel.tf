@@ -1,4 +1,4 @@
-# Microsoft Sentinel on the observability workspace (ADR D21). Sentinel keeps no
+# Microsoft Sentinel on the observability workspace (ADR-021). Sentinel keeps no
 # data of its own; its analytics rules query this workspace's tables.
 # Onboarding starts the 31-day free trial (10 GB/day of ingestion and analysis
 # waived); Removing this resource offboards the workspace and every rule on it.

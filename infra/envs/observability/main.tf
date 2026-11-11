@@ -1,5 +1,5 @@
 locals {
-  # The nightly teardown is bounded by Terraform state, not by tags (ADR D12).
+  # The nightly teardown is bounded by Terraform state, not by tags (ADR-012).
   # The tag exists so drift checks such as `az resource list --tag
   # layer=ephemeral` do not report this layer.
   common_tags = {

@@ -1,6 +1,6 @@
 # Telemetry inventory
 
-What the observability workspace (`log-cne-observability`, `rg-cne-observability`) receives, how long it keeps it, and what each source can and cannot prove. Decisions are in [ADR D21](adr/ADR-021-telemetry.md); each row was verified with a query against the lab, not assumed from configuration (evidence in [`evidence/m2`](evidence/m2)).
+What the observability workspace (`log-cne-observability`, `rg-cne-observability`) receives, how long it keeps it, and what each source can and cannot prove. Decisions are in [ADR-021](adr/ADR-021-telemetry.md); each row was verified with a query against the lab, not assumed from configuration (evidence in [`evidence/m2`](evidence/m2)).
 
 Workspace: Analytics plan, retention 90 days (`log_retention_days`), daily ingestion cap 1 GB (`daily_quota_gb`), local (shared-key) auth disabled. Microsoft Sentinel is enabled on it.
 

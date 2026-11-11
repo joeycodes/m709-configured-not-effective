@@ -1,5 +1,5 @@
 ### 2026-11-05 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
-### test: DNS security policies, one per VNet and with no rules, bring the lab's queries to Azure DNS into DNSQueryLogs in log-cne-observability (ADR D21, amendment of 2026-10-26; the source for detection (c) and scenario #4)
+### test: DNS security policies, one per VNet and with no rules, bring the lab's queries to Azure DNS into DNSQueryLogs in log-cne-observability (ADR-021, amendment of 2026-10-26; the source for detection (c) and scenario #4)
 ### note: open question from ADR-021: is a query that matches no rule logged at all? The documentation names Allow, Block and Alert as actions that log and says nothing about unmatched queries. These policies have no rules, so any row answers it.
 ### note: built by #59 (bc31a15), infra/envs/lab/dns.tf, with azapi 2.13.0 (Microsoft.Network/dnsResolverPolicies@2025-05-01 and its virtualNetworkLinks child) and one azurerm diagnostic setting per policy (category group allLogs).
 

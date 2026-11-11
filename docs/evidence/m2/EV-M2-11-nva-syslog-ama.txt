@@ -1,5 +1,5 @@
 ### 2026-10-20 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
-### test: kernel log lines from nftables on the NVA reach the workspace's Syslog table through the Azure Monitor Agent (AMA) and the data collection rule (ADR D21)
+### test: kernel log lines from nftables on the NVA reach the workspace's Syslog table through the Azure Monitor Agent (AMA) and the data collection rule (ADR-021)
 ### note: the path is nftables -> kernel log -> rsyslog -> AMA -> workspace. The DCR (dcr-cne-nva-syslog, observability layer) says what to collect: facility kern, Warning and above, stream Microsoft-Syslog. It names no VM; the lab layer binds the NVA to it with an association. AMA authenticates with the NVA's system-assigned managed identity, so the workspace's local auth being disabled does not apply to it.
 ### note: DCR by #40 (5c3fb05), applied by Terraform apply (observability) 39506555747. Agent, identity and association by #43 (deaafde), applied by Terraform apply 39517209558 (17:46:48-17:48:14). No nftables rule in the baseline logs at Warning except the forward chain's final drop, so the test lines below are generated on purpose.
 

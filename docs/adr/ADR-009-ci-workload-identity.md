@@ -1,6 +1,6 @@
 # ADR-009: CI authentication: workload identity federation, no client secret
 
-Decision D9. Written during bootstrap and M1 as a section of
+Written during bootstrap and M1 as a section of
 [ADR-000-bootstrap.md](ADR-000-bootstrap.md), which keeps the shared context
 (constraints and the staged-hardening principle) and the known limitations
 L1 to L3. Index: [README.md](README.md).
@@ -18,7 +18,7 @@ issuing an Azure token.
 **Decision**
 An app registration (`gh-m709-configured-not-effective`, appId
 `8d9d812c-…`) with no credentials of any kind, a service principal
-(`596978ed-…`) carrying the role assignments in D8, and federated credentials
+(`596978ed-…`) carrying the role assignments in ADR-008, and federated credentials
 registering the trusted subjects. GitHub holds only three identifiers —
 client ID, tenant ID, subscription ID — stored as repository **Variables**, not
 Secrets, because none of them is a credential.

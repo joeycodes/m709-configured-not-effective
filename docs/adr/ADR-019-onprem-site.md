@@ -1,6 +1,6 @@
 # ADR-019: The on-premises site: IPsec on the NAT-T port, eBGP, and what the M1 gate can claim
 
-Decision D19. Written during bootstrap and M1 as a section of
+Written during bootstrap and M1 as a section of
 [ADR-000-bootstrap.md](ADR-000-bootstrap.md), which keeps the shared context
 (constraints and the staged-hardening principle) and the known limitations
 L1 to L3. Index: [README.md](README.md).
@@ -93,14 +93,14 @@ managed VPN Gateway in one respect, below.
 - (−) The conclusions hold for a self-hosted tunnel endpoint. Whether they
   transfer to the managed gateway is not tested; stated as a limitation of
   external validity in the report.
-- `CKV_AZURE_119` is accepted inline on the gateway NIC, as on the hub (D18).
+- `CKV_AZURE_119` is accepted inline on the gateway NIC, as on the hub (ADR-018).
 - **Structure differs from the schedule.** The schedule names
   `modules/network`, `modules/tiers` and `modules/logging`, with the address
   table generated from a `locals` map. As built, the code is split by
   environment rather than by component: `envs/lab` (ephemeral, destroyed
-  nightly) and `envs/observability` (persistent, D17), each a root module with
+  nightly) and `envs/observability` (persistent, ADR-017), each a root module with
   its own state. The split that matters here is lifecycle, persistent against
-  ephemeral (D12), and a directory per state expresses it directly. Child
+  ephemeral (ADR-012), and a directory per state expresses it directly. Child
   modules would make the component boundaries more visible, but each would
   have exactly one caller, so they would add the cost of passing every input
   and output across a module boundary without giving any reuse, in a lab whose
