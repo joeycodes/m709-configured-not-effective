@@ -51,9 +51,9 @@ managed VPN Gateway in one respect, below.
 - **The M1 gate is restated.** The schedule asks for BGP-learned routes in
   Azure effective routes. Only a managed gateway or Route Server injects routes
   into the Azure fabric; a self-hosted NVA cannot. The gate is met instead by
-  BGP routes in FRR and in the kernel on both gateways (K1), with the tiers
-  reaching on-premises through their default route to the NVA (G2, K4). The
-  rebuild half of the gate is met by L1.
+  BGP routes in FRR and in the kernel on both gateways (EV-M1-31), with the tiers
+  reaching on-premises through their default route to the NVA (EV-M1-19, EV-M1-34). The
+  rebuild half of the gate is met by EV-M1-36.
 - **Validation window #1 is dropped.** It would test whether the tunnel design
   holds on the managed VPN Gateway: a connectivity product, not a security
   control. The project tests controls. The window is not a success criterion in
@@ -69,7 +69,7 @@ managed VPN Gateway in one respect, below.
 - (+) A mis-advertisement on either side is bounded to one prefix in, one out.
 - (+) The whole lab, tunnel and routing included, rebuilds from `main` in one
   run and is usable in about four minutes; the gateways finish cloud-init and
-  establish BGP before Terraform has finished creating peerings. (L1)
+  establish BGP before Terraform has finished creating peerings. (EV-M1-36)
 - (−) **Finding: the `VirtualNetwork` tag is evaluated per NIC, and it governs
   forwarded traffic in both directions.** On-premises → tier-1 reached the hub,
   left its `eth0`, and never arrived. The hub subnet has no route table, so its
@@ -78,11 +78,11 @@ managed VPN Gateway in one respect, below.
   `DenyAllOutBound` — silently, after every host-side check had passed. The
   reverse direction failed the same way at the on-premises gateway. Tier-2 →
   tier-0 had worked through the hub NIC only because its source is inside the
-  tag. The existing inbound rules had been read as sufficient. (K2–K4)
+  tag. The existing inbound rules had been read as sufficient. (EV-M1-32 to EV-M1-34)
 - (−) An advertised route is not a reachable one. The anchor makes the
   aggregate permanent: the hub advertises `10.100.0.0/14` while any spoke is
   unreachable, and an Established session says nothing about the data path.
-  Reachability is shown by K4, not K1.
+  Reachability is shown by EV-M1-34, not EV-M1-31.
 - (−) Behaviour on tunnel loss is untested. With the routes withdrawn, traffic
   to on-premises should follow the hub's default route and be dropped, since
   the masquerade excludes RFC 1918 destinations and the fabric has no route to
@@ -110,7 +110,7 @@ managed VPN Gateway in one respect, below.
 
 **Alternatives considered**
 - *IKE starting on UDP 500* — needs a second port open, and was shown not to
-  complete when only one end moved (J1).
+  complete when only one end moved (EV-M1-28).
 - *Policy-based IPsec* — every new prefix would need a new SA; BGP would have
   nothing to decide.
 - *Azure Route Server* — puts BGP routes into effective routes, as the original
@@ -118,6 +118,6 @@ managed VPN Gateway in one respect, below.
 - *Child modules per component* — see the last consequence.
 
 **Verification**
-Evidence in `docs/evidence/m1/`: J1–J3 for the tunnel, K1 for BGP, K2–K4 for
-the NSG finding and the data path in both directions, K5 for `ipsec0` after
-link-local addressing was turned off, and L1 for the rebuild from `main`.
+Evidence in `docs/evidence/m1/`: EV-M1-28 to EV-M1-30 for the tunnel, EV-M1-31 for BGP, EV-M1-32 to EV-M1-34 for
+the NSG finding and the data path in both directions, EV-M1-35 for `ipsec0` after
+link-local addressing was turned off, and EV-M1-36 for the rebuild from `main`.

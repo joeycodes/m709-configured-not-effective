@@ -20,29 +20,29 @@ shown, is under *Open gaps*.
 
 | ID | Assertion |
 |----|-----------|
-| A1 | The NVA is configured from code: cloud-init complete, nftables active, kernel forwarding on |
-| G3 | The NVA rebuilds with the intended ruleset |
-| G2 | A tier's routes send everything beyond its own VNet to the NVA |
-| G1 | The run-command management path survives the default route |
-| C3–C5 | Every forwarded packet is accounted for on the NVA |
-| H1–H3 | The deny for tier-2 → tier-0 is persistent, directional and attributable to one rule |
-| G4 | Tier egress leaves through the NVA |
-| G5 | Inbound from the internet is refused, by configuration and in effect |
+| EV-M1-01 | The NVA is configured from code: cloud-init complete, nftables active, kernel forwarding on |
+| EV-M1-20 | The NVA rebuilds with the intended ruleset |
+| EV-M1-19 | A tier's routes send everything beyond its own VNet to the NVA |
+| EV-M1-18 | The run-command management path survives the default route |
+| EV-M1-05 to EV-M1-07 | Every forwarded packet is accounted for on the NVA |
+| EV-M1-23 to EV-M1-25 | The deny for tier-2 → tier-0 is persistent, directional and attributable to one rule |
+| EV-M1-21 | Tier egress leaves through the NVA |
+| EV-M1-22 | Inbound from the internet is refused, by configuration and in effect |
 | E | Forwarding requires both the fabric and the kernel |
-| F2–F4 | A change made outside the configuration is detected and reverted by `apply` |
-| I1 | The on-premises server reaches the internet through the on-premises gateway |
-| I2 | Before the tunnel exists there is no path between on-premises and Azure |
-| J2 | The IPsec tunnel establishes on the NAT-T port at both ends |
-| J3 | Data crosses the tunnel in both directions, and the two ends account for it identically |
-| K1 | eBGP is established over the tunnel; each gateway learns only the other's aggregate and installs it in the kernel |
-| K2 | Without the outbound rules, forwarded traffic leaves the forwarding gateway and is never delivered, each direction at a different gateway; restoring the rules through the pipeline restores delivery |
-| K3 | Forwarded traffic between the two aggregates is allowed outbound at both gateways' NSGs, and nothing wider |
-| K4 | The on-premises server and tier-1 reach each other through the tunnel in both directions, seen at every hop |
-| K5 | `ipsec0` transmit errors do not grow: at most one, at start-up |
-| L1 | The whole lab builds from main in one run, from no resource group, and is usable in about 4 min 15 s |
+| EV-M1-15 to EV-M1-17 | A change made outside the configuration is detected and reverted by `apply` |
+| EV-M1-26 | The on-premises server reaches the internet through the on-premises gateway |
+| EV-M1-27 | Before the tunnel exists there is no path between on-premises and Azure |
+| EV-M1-29 | The IPsec tunnel establishes on the NAT-T port at both ends |
+| EV-M1-30 | Data crosses the tunnel in both directions, and the two ends account for it identically |
+| EV-M1-31 | eBGP is established over the tunnel; each gateway learns only the other's aggregate and installs it in the kernel |
+| EV-M1-32 | Without the outbound rules, forwarded traffic leaves the forwarding gateway and is never delivered, each direction at a different gateway; restoring the rules through the pipeline restores delivery |
+| EV-M1-33 | Forwarded traffic between the two aggregates is allowed outbound at both gateways' NSGs, and nothing wider |
+| EV-M1-34 | The on-premises server and tier-1 reach each other through the tunnel in both directions, seen at every hop |
+| EV-M1-35 | `ipsec0` transmit errors do not grow: at most one, at start-up |
+| EV-M1-36 | The whole lab builds from main in one run, from no resource group, and is usable in about 4 min 15 s |
 
 The evidence for each ID is in this directory, in the file or files whose name
-begins with that ID, for example `G5-inbound-from-internet.txt`.
+begins with that ID, for example `EV-M1-22-inbound-from-internet.txt`.
 
 ### Earlier readings
 
@@ -51,61 +51,61 @@ later change and is not re-runnable verbatim.
 
 | ID | Shows | Superseded by |
 |----|-------|---------------|
-| B1 | routes before the default route was added | G2 |
-| C1 | tier-2 → tier-0 through the NVA, before the persistent deny | H2 |
-| C2 | counters before the `ct state` rules carried them | C3–C5 |
-| D1–D4 | a deny inserted at run time, ahead of the stateful accept | H1–H3 |
-| F1 | `apply` after the drift had been undone by hand | F2–F4 |
-| J1 | IKE sent from port 500 to port 4500: accepted by every layer up to the daemon, silently dropped by the kernel | J2 |
+| EV-M1-02 | routes before the default route was added | EV-M1-19 |
+| EV-M1-03 | tier-2 → tier-0 through the NVA, before the persistent deny | EV-M1-24 |
+| EV-M1-04 | counters before the `ct state` rules carried them | EV-M1-05 to EV-M1-07 |
+| EV-M1-08 to EV-M1-11 | a deny inserted at run time, ahead of the stateful accept | EV-M1-23 to EV-M1-25 |
+| EV-M1-14 | `apply` after the drift had been undone by hand | EV-M1-15 to EV-M1-17 |
+| EV-M1-28 | IKE sent from port 500 to port 4500: accepted by every layer up to the daemon, silently dropped by the kernel | EV-M1-29 |
 
-C3–C5 and E used tier-2 → tier-0 as their test flow, which is now refused; a
+EV-M1-05 to EV-M1-07 and EV-M1-12 to EV-M1-13 used tier-2 → tier-0 as their test flow, which is now refused; a
 re-run uses tier-1 → tier-0.
 
 ## Findings
 
 - **A counter attributes; a failed ping does not.** The deny counter accounts
   for exactly the refused packets, which identifies the rule and the host that
-  stopped them. (H3, D4)
+  stopped them. (EV-M1-25, EV-M1-11)
 - **A rule's position decides its behaviour.** After the stateful accept the
   deny refuses new flows only; ahead of it, the same text blocks both
-  directions. The ruleset listing does not distinguish the two. (H2, D1)
+  directions. The ruleset listing does not distinguish the two. (EV-M1-24, EV-M1-08)
 - **Host accounting has a blind spot.** With IP forwarding off on the NIC, every
   check on the NVA reports success and nothing is delivered: the fabric discards
   the packets outside the operating system's view. The prediction made before
-  the run was refuted. (E1)
+  the run was refuted. (EV-M1-12)
 - **Drift detection covers that blind spot,** because `plan` compares the
-  configuration with what the platform reports. (F3)
+  configuration with what the platform reports. (EV-M1-16)
 - **The `VirtualNetwork` tag is per NIC, and it decides forwarded traffic.**
   Traffic forwarded from on-premises left the hub and was dropped silently by
   the hub NIC's default outbound rules, because its source is outside that
   NIC's tag; the reverse direction was dropped the same way at the on-premises
   gateway. Every host-side check passed. Tier-2 → tier-0 had crossed the same
-  NIC only because its source is inside the tag. (K2, K3, K4)
+  NIC only because its source is inside the tag. (EV-M1-32, EV-M1-33, EV-M1-34)
 - **A failed connection is evidence of a control only if its failure mode
   matches that control and the test path is known.** A VPN client on the test
   workstation answered on the target's behalf and produced two other failure
-  modes before the real one was seen. (G5)
+  modes before the real one was seen. (EV-M1-22)
 
 ## Open gaps
 
 - **Tier-0 egress contradicts the design.** TECHNICAL-DESIGN.md gives tier-0
   default-deny egress; the deployed ruleset lets tier-0 reach the internet and
   open flows to other tiers. Found in review, not by a test; deferred to M3
-  (ADR D18). (G3, H2 c)
+  (ADR D18). (EV-M1-20, EV-M1-24 c)
 - **The forward chain is not quiet.** With egress open the tiers generate
   background traffic of unknown purpose, so only counters on rules specific to
-  the tested flow can be read exactly. (H1, H3)
+  the tested flow can be read exactly. (EV-M1-23, EV-M1-25)
 - **The second layer is not exercised.** Tier-0's NSG also denies tier-2, but
   the NVA drops those packets first.
-- **G1 covers tier-2 only.** It does not show that run-command works on a VM
+- **EV-M1-18 covers tier-2 only.** It does not show that run-command works on a VM
   with no egress.
 - **BGP routes stop at the gateways.** They are in FRR and the kernel on both
   gateways, not in Azure effective routes; the tiers reach on-premises through
   their default route to the NVA. The M1 gate, which asked for effective
-  routes, is restated in ADR D19. (K1, G2)
+  routes, is restated in ADR D19. (EV-M1-31, EV-M1-19)
 - **The hub's port-4500 rule reads zero once the tunnel is up.** Its traffic
   matches `ct state established` first, consistent with the tunnel having been
-  negotiated before the ruleset was loaded at boot; unconfirmed. (J2 c)
+  negotiated before the ruleset was loaded at boot; unconfirmed. (EV-M1-29 c)
 
 ## Method notes
 

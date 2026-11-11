@@ -4,7 +4,7 @@
 ### note: the gateways boot early (hub 18:02:36, gateway 18:03:24) and cloud-init completes while Terraform is still creating peerings, so cloud-init is not on the critical path. On-premises to the tiers needs the peerings, so the environment is usable at Apply complete: about 4 min 15 s.
 ### note: the slowest resources are all peerings, each slower than the last (52 s to 2 min 24 s); the VMs take about 48 s. Consistent with peering operations on the hub VNet being serialised; not investigated.
 ### note: literal ^[[0m^[[1m colour sequences from the log are removed throughout; the "Creation complete" lines are trimmed to duration and resource address; the step JSON is compacted to one line per step, values unchanged.
-### note: the ipsec0 counters in (d) are the first K5 reading.
+### note: the ipsec0 counters in (d) are the first EV-M1-35 reading.
 
 ### (a) before the run
 ### cmd: az group exists -n rg-cne-lab

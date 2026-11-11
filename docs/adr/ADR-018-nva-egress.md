@@ -12,7 +12,7 @@ After D15 the tiers were segmented from each other but each still reached the
 internet directly through Azure's default route, outside any inspection.
 TECHNICAL-DESIGN.md requires the hub to be the only path to the internet. The
 tier-2 → tier-0 deny also existed only as a rule inserted by hand during a test
-(evidence D1–D4), lost at every rebuild.
+(evidence EV-M1-08 to EV-M1-11), lost at every rebuild.
 
 **Decision**
 - **One egress point.** The NVA has a Standard static public IP. Each tier route
@@ -59,9 +59,9 @@ tier-2 → tier-0 deny also existed only as a rule inserted by hand during a tes
 - *Deny placed before the stateful accept* — also drops replies, which blocks
   both directions with a rule that reads as one.
 - *Segmentation in NSGs only* — no per-rule packet accounting, which the
-  evidence in D4 and H relies on.
+  evidence in EV-M1-11 and EV-M1-23 to EV-M1-25 relies on.
 
 **Verification**
-Evidence in `docs/evidence/m1/`, G1–G5 and H1–H3: the default route, the
+Evidence in `docs/evidence/m1/`, EV-M1-18 to EV-M1-22 and EV-M1-23 to EV-M1-25: the default route, the
 management path, the egress address, the inbound refusal, and the directional
 deny with its counter.

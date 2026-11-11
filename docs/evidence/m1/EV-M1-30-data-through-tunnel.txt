@@ -2,7 +2,7 @@
 ### test: data crosses the tunnel in both directions, and the two ends account for it identically — each SA's packet count on one end equals the opposite SA's count on the other
 ### note: plugin warnings omitted. SPI cf104dac is hub-in and gateway-out; c299dc94 is hub-out and gateway-in.
 ### note: the gateway's SAs read 6 because they carry both pings: three requests from the hub with their replies, then three of its own.
-### note: the gateway's ipsec0 input rule counts 1 packet / 84 bytes, the first echo request of the hub's ping; the later requests matched ct state established. Same pattern as C2.
+### note: the gateway's ipsec0 input rule counts 1 packet / 84 bytes, the first echo request of the hub's ping; the later requests matched ct state established. Same pattern as EV-M1-04.
 
 ### (a) hub -> gateway, tunnel addresses
 ### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "ping -c3 -W2 169.254.100.2; echo exit=\$?; echo ---; swanctl --list-sas | grep -E 'in |out '; echo ---; ip -s link show ipsec0" --query "value[0].message" -o tsv

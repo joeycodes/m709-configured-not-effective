@@ -2,7 +2,7 @@
 ### test: with remote_port = 4500 but the default local port, the tunnel does not come up — and every layer up to the IKE daemon reports nothing wrong
 ### note: the hub's public address is <nva-public-ip>; the gateway's is <onprem-gw-public-ip>.
 ### note: swanctl prints "plugin '...': failed to load" for thirteen optional plugins on every call; these lines are omitted. gcm and openssl, which the proposals need, are not among them.
-### note: the gateway sends from its local port 500 to the hub's port 4500. A packet sent to 4500 must carry a four-byte non-ESP marker; one sent from the port-500 socket does not, so the hub's kernel takes it for ESP, finds no SA, and drops it before the daemon sees it. Fixed by local_port = 4500 at both ends (J2).
+### note: the gateway sends from its local port 500 to the hub's port 4500. A packet sent to 4500 must carry a four-byte non-ESP marker; one sent from the port-500 socket does not, so the hub's kernel takes it for ESP, finds no SA, and drops it before the daemon sees it. Fixed by local_port = 4500 at both ends (EV-M1-29).
 
 ### (a) on-premises gateway: the IKE_SA never leaves CONNECTING
 ### cmd: az vm run-command invoke -g $RG -n vm-cne-onprem-gw --command-id RunShellScript --scripts "swanctl --list-sas; echo ---; ip -s link show ipsec0" --query "value[0].message" -o tsv

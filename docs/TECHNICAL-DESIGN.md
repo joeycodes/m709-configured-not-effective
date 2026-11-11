@@ -107,7 +107,7 @@ The code is split by environment, not by component: each directory under `envs/`
 ### 4.2 State, identity, and bootstrap
 
 - **Remote state:** an Azure Storage backend, part of the persistent base (never destroyed). State locking via blob lease.
-- **Authentication:** GitHub Actions authenticates to Azure via OIDC federation. No long-lived credentials in CI. Infrastructure changes go through the pipeline by discipline, not by control: the author holds `Owner` on the subscription (ADR D8, limitation L2), so a local `apply` or an out-of-band change is possible. Such changes are caught as drift by the next `plan` (evidence F2–F4, K2).
+- **Authentication:** GitHub Actions authenticates to Azure via OIDC federation. No long-lived credentials in CI. Infrastructure changes go through the pipeline by discipline, not by control: the author holds `Owner` on the subscription (ADR D8, limitation L2), so a local `apply` or an out-of-band change is possible. Such changes are caught as drift by the next `plan` (evidence EV-M1-15 to EV-M1-17, EV-M1-32).
 - **Bootstrap (one-time, manual):** create the state backend and the OIDC trust. Everything else flows through CI. Recorded in an ADR.
 
 ---

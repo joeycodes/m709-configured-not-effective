@@ -1,6 +1,6 @@
 ### 2026-10-07
 ### test: with local_port = 4500 at both ends the tunnel establishes on the NAT-T port, the CHILD_SA is bound to interface ID 42, and dead-peer detection runs in both directions
-### note: public addresses replaced as in J1; plugin warnings omitted. 0x0000002a is interface ID 42, the InterfaceId of ipsec0.
+### note: public addresses replaced as in EV-M1-28; plugin warnings omitted. 0x0000002a is interface ID 42, the InterfaceId of ipsec0.
 
 ### (a) hub
 ### cmd: az vm run-command invoke -g $RG -n vm-cne-hub --command-id RunShellScript --scripts "swanctl --list-sas; echo ---; ip -s link show ipsec0" --query "value[0].message" -o tsv

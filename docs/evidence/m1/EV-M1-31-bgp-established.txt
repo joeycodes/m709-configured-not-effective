@@ -1,8 +1,8 @@
 ### 2026-10-09
 ### test: eBGP is established over the tunnel; each gateway receives exactly one prefix, the other side's aggregate, and installs it in the kernel via ipsec0
 ### note: hub AS 65010, gateway AS 65020, peering on the tunnel addresses. PfxRcd 1 / PfxSnt 1 on both sides: the prefix-lists pass the one aggregate each way.
-### note: the kernel route carries metric 20, FRR's default for eBGP routes. Neither gateway's 10.x route is visible in Azure effective routes; the tiers reach on-premises through their default route to the NVA (G2).
-### note: ipsec0 runs with MTU 1400 and no IPv6 address (ipv6_lines=0), from LinkLocalAddressing=no and MTUBytes=1400. TX errors read 0 on the hub and 1 on the gateway, after about 1 h 33 min of uptime; compare J3, where both ends read 7-8 and kept growing.
+### note: the kernel route carries metric 20, FRR's default for eBGP routes. Neither gateway's 10.x route is visible in Azure effective routes; the tiers reach on-premises through their default route to the NVA (EV-M1-19).
+### note: ipsec0 runs with MTU 1400 and no IPv6 address (ipv6_lines=0), from LinkLocalAddressing=no and MTUBytes=1400. TX errors read 0 on the hub and 1 on the gateway, after about 1 h 33 min of uptime; compare EV-M1-30, where both ends read 7-8 and kept growing.
 
 ### (a) hub and (b) gateway
 ### cmd: for vm in vm-cne-hub vm-cne-onprem-gw; do echo "##### $vm"; az vm run-command invoke -g $RG -n $vm --command-id RunShellScript --scripts "vtysh -c 'show bgp summary'; echo ---; vtysh -c 'show ip bgp'; echo ---; ip route show proto bgp; echo ---; ip -s link show ipsec0; ip -6 addr show dev ipsec0; echo ipv6_lines=\$(ip -6 addr show dev ipsec0 | wc -l)" --query "value[0].message" -o tsv; done

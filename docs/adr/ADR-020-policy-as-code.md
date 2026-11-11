@@ -61,7 +61,7 @@ spokes send to — had no check before deployment. M2 week 5 adds one.
   effect.
 
 **Consequences**
-- (+) Every rule above was shown to fire on a deliberate violation (EV-M2-01–EV-M2-05),
+- (+) Every rule above was shown to fire on a deliberate violation (EV-M2-01 to EV-M2-05),
   and the gate as a whole on a pull request into `main` (EV-M2-07).
 - (−) **A rule fails silently where it selects.** In EV-M2-07, one wrong field name
   (`tags` → `tag`) made `spoke_routes` match nothing, and a plan missing a
@@ -90,4 +90,4 @@ spokes send to — had no check before deployment. M2 week 5 adds one.
   complement this gate, not replace it.
 
 **Verification**
-Evidence EV-M2-01–EV-M2-08 in `docs/evidence/m2/`.
+Evidence EV-M2-01 to EV-M2-08 in `docs/evidence/m2/`.
