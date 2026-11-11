@@ -20,7 +20,7 @@ EV-OBS-03 is the one that matters: EV-OBS-01 and EV-OBS-02 say the export is con
 works. It also confirms the export is not retroactive — nothing before the apply
 is present, so the policy deletion recorded in D16 is not in the workspace.
 
-The same table holds an independent record of the M1 drift test (F2–F4). The
+The same table holds an independent record of the M1 drift test (EV-M1-15 to EV-M1-17). The
 network-interface writes show the CI identity creating the NICs at 03:59, a
 *user* writing to `nic-cne-hub` at 04:34:25, and the CI identity writing it back
 at 04:35:48. That user write is what the first detection rule is meant to catch.

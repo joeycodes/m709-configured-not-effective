@@ -44,7 +44,7 @@ the skip is reviewed in the pull request that introduces it.
 **Revisited 2026-10-06 (D18).** The NVA now has a public IP. The premise is
 restated more exactly: the exception holds while no VM has an inbound
 *management* exposure. That is still true — the hub NSG opens nothing to the
-internet, verified in evidence G5 — and run-command remains the only management
+internet, verified in evidence EV-M1-22 — and run-command remains the only management
 path, so the exception stands for all four VMs. It is to be revisited again when
 UDP 500 and 4500 are opened for IPsec.
 

@@ -4,7 +4,7 @@
 ### note: the path read from the captures: srv -> gateway eth0 In -> ipsec0 Out -> hub ipsec0 In -> eth0 Out -> tier-1 eth0 In, and the reverse for the reply. Traffic forwarded through the hub is not NATed: tier-1 sees 10.0.1.4 as the source.
 ### note: ens1 and eth0 are the same NIC (ens1 is the accelerated-networking VF), so each packet appears on both: 6 lines per echo on each gateway, 4 on tier-1.
 ### note: the stop step reports "Unit cap2.service not loaded": the transient unit was already gone when it was stopped. Both pings are complete on all three hosts, so the captures cover the test window; the cause was not investigated. "interface names might be incorrect" is tcpdump's warning when reading a cooked-v2 file.
-### note: before the NSG rules in K3, the same capture showed the request leaving the hub's eth0 and nothing arriving at tier-1.
+### note: before the NSG rules in EV-M1-33, the same capture showed the request leaving the hub's eth0 and nothing arriving at tier-1.
 
 ### (a) capture started on hub, gateway and tier-1 (output not kept)
 ### cmd: for vm in vm-cne-hub vm-cne-onprem-gw vm-cne-tier1; do az vm run-command invoke -g $RG -n $vm --command-id RunShellScript --scripts "systemctl stop cap2 2>/dev/null; systemctl reset-failed cap2 2>/dev/null; rm -f /tmp/cap2.pcap; systemd-run --unit=cap2 tcpdump -U -ni any -w /tmp/cap2.pcap 'icmp and host 10.0.1.4'; sleep 1; systemctl is-active cap2" --query "value[0].message" -o tsv; done
