@@ -96,7 +96,7 @@ rows from the lab, recorded as evidence.
 - Still open: whether a traffic rule is needed for queries to be logged (the
   documentation ties logging to rule actions without saying that unmatched
   queries go unlogged); tested first with no rule, then with a catch-all rule.
-- Answered (2026-11-05, evidence D1): no traffic rule is needed. With no rules,
+- Answered (2026-11-05, evidence EV-M3-01): no traffic rule is needed. With no rules,
   the policies log every VNet's queries to Azure DNS, with
   `ResolverPolicyRuleAction` `None`. Built as one policy per VNet (#59), so
   each carries its zone tag.

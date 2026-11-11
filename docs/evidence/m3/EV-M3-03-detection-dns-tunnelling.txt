@@ -1,13 +1,13 @@
 ### 2026-11-08 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
 ### test: detection (c) stays silent on the baseline and raises an incident when one source sends many long, high-entropy subdomains under one parent domain (ADR D21, amendment of 2026-10-26; scenario #4's detection)
 ### note: this is the rule's own synthetic trigger, made to show that it fires. It is not a run of scenario #4, which is pre-registered and run in M3 week 10. #4 sends the same kind of query from tier 0 as the assume-breach foothold; here the queries are a throwaway burst.
-### note: rule (c) by #62 (892ee84), infra/detections/dns_many_random_subdomains.kql. Query: per source IP and parent domain (the last two labels), count the distinct subdomains at least 25 characters long with Shannon entropy at least 3.3; alert on more than 10. The main signal is the count; length and entropy are secondary (D1: platform names such as the AMA endpoints reach entropy 3.9). tier 0 is 10.101.0.4.
-### note: the build hit the Network Watcher flow-log InternalServerError again (apply 42492804147, on fl-cne-tier1). Third occurrence (S3 (a) fl-cne-tier2, D1 (a) fl-cne-hub); same handling each time: delete the Failed flow log by hand, rerun, success. A different VNet each time, so not tied to one; cause unknown. For the Week 13 build record.
+### note: rule (c) by #62 (892ee84), infra/detections/dns_many_random_subdomains.kql. Query: per source IP and parent domain (the last two labels), count the distinct subdomains at least 25 characters long with Shannon entropy at least 3.3; alert on more than 10. The main signal is the count; length and entropy are secondary (EV-M3-01: platform names such as the AMA endpoints reach entropy 3.9). tier 0 is 10.101.0.4.
+### note: the build hit the Network Watcher flow-log InternalServerError again (apply 42492804147, on fl-cne-tier1). Third occurrence (S3 (a) fl-cne-tier2, EV-M3-01 (a) fl-cne-hub); same handling each time: delete the Failed flow log by hand, rerun, success. A different VNet each time, so not tied to one; cause unknown. For the Week 13 build record.
 
 ### (a) baseline: the rule returns nothing
 ### note: run in Log Analytics before the trigger; the rule's own query over the last period.
-### result: no rows. The baseline traffic (platform and OS lookups, D1) does not reach the threshold after the exclusions, length and entropy filters.
-### note: the three rules are Enabled in the Defender portal (Analytics, Active rules). Screenshot: S4-sentinel-active-rule.png (rule (c), its tactics T1048/T1071 and description shown).
+### result: no rows. The baseline traffic (platform and OS lookups, EV-M3-01) does not reach the threshold after the exclusions, length and entropy filters.
+### note: the three rules are Enabled in the Defender portal (Analytics, Active rules). Screenshot: EV-M3-03-sentinel-active-rule.png (rule (c), its tactics T1048/T1071 and description shown).
 
 ### (b) the trigger: 30 random subdomains from tier 0
 ### cmd (09:41:46): az vm run-command invoke -g rg-cne-lab -n vm-cne-tier0 --command-id RunShellScript --scripts 'date -u; for i in $(seq 1 30); do n=$(head -c 25 /dev/urandom | base32 | tr -d "=" | tr "A-Z" "a-z"); getent ahostsv4 "$n.example.com" > /dev/null; done; date -u'
@@ -35,7 +35,7 @@ Created                       FirstActivity
 2026-11-08T15:53:27.15Z       2026-11-08T14:48:12Z
 2026-11-08T16:03:28.9366667Z  2026-11-08T14:58:12Z
 
-### note: incident 7 (Defender portal), High, category Command and control. Created 15:53:27 UTC. Screenshots: S4-defender-incidents.png (both incidents, priority score 2, filter removed); S4-incident-7.png (incident 7, Attack story, "No entities to display").
+### note: incident 7 (Defender portal), High, category Command and control. Created 15:53:27 UTC. Screenshots: EV-M3-03-defender-incidents.png (both incidents, priority score 2, filter removed); EV-M3-03-incident-7.png (incident 7, Attack story, "No entities to display").
 ### note: MTTD = 15:53:27 - 15:41:46 = 11 min 41 s, from the first query to incident creation.
 ### note: two incidents, created 10 min apart. query_frequency is PT10M and query_period PT1H, so two consecutive runs both cover the one-time burst and each raises an incident. Expected; MTTD uses the first.
 ### note: firstActivityTimeUtc (14:48:12) is about 53 min before the trigger and is not the attack time. The rule's KQL does not filter on TimeGenerated, so first/last activity track the query window's edge, not the burst. MTTD is taken from createdTimeUtc, not firstActivityTimeUtc. Binding activity time to the burst would need TimeGenerated carried through the summarize; left for week 11/12 tuning.
