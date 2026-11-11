@@ -1,7 +1,7 @@
 ### 2026-11-10 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
 ### test: scenario #1, lateral movement tier 2 -> tier 0 (T1021.004), first run, against the baseline as built. Runbook: attack/scenarios/scenario-1-lateral-movement.md. Pre-registration: attack/scenarios/PREREGISTRATION.md #1 (committed 2026-11-03, before this run).
 ### note: expected outcome as pre-registered: Prevented: Yes (NVA drops, fwd-t2t0-drop) · Detected: No · MTTD: n/a. Foothold vm-cne-tier2 10.103.0.4; target vm-cne-tier0 10.101.0.4.
-### note: build: Terraform apply 42892956270 (main). The flow-log InternalServerError recurred, on fl-cne-tier2, and was handled as before: delete the Failed flow log, rerun. Fourth occurrence (S3, D1, S4); for the Week 13 build record.
+### note: build: Terraform apply 42892956270 (main). The flow-log InternalServerError recurred, on fl-cne-tier2, and was handled as before: delete the Failed flow log, rerun. Fourth occurrence (S3, EV-M3-01, EV-M3-03); for the Week 13 build record.
 
 ### (a) preconditions
 ### assertion: Reachability assertion 42894681967, success, 57 s. An earlier run, 42894189518, ended after 11 s with no result, after the failed apply attempt.
@@ -26,7 +26,7 @@ Rows    SubType
 1146    FlowLog
 3       StatusMessage
 ### note: Traffic Analytics is processing (1146 FlowLog rows in the last 30 min), so an empty tier-0 result in (f) means no flow, not a gap in processing.
-### rules (a) and (b): Defender, Analytics, Active rules: "T2 to T0 Accepted" (a) and "T0 inbound without NVA record" (b) both Enabled. Screenshot A1-active-rules.png.
+### rules (a) and (b): Defender, Analytics, Active rules: "T2 to T0 Accepted" (a) and "T0 inbound without NVA record" (b) both Enabled. Screenshot EV-M3-04-active-rules.png.
 
 ### (b) step 1: SSH from tier 2 to tier 0
 ### cmd (14:30:25): az vm run-command invoke -g rg-cne-lab -n vm-cne-tier2 --command-id RunShellScript --scripts 'date -u; ssh -o ConnectTimeout=5 -o BatchMode=yes azureuser@10.101.0.4'
@@ -77,7 +77,7 @@ TimeGenerated                SyslogMessage
 (no rows)
 Tue Nov 10 20:58:54 UTC 2026
 
-### note: screenshot A1-tier0-no-row.png. The 30 min window (20:28:54-20:58:54) covers the attempt at 20:30:25. The empty result is meaningful because Traffic Analytics had processed that interval: (c) and (d) rows for the same flow arrived at 20:42:47.
+### note: screenshot EV-M3-04-tier0-no-row.png. The 30 min window (20:28:54-20:58:54) covers the attempt at 20:30:25. The empty result is meaningful because Traffic Analytics had processed that interval: (c) and (d) rows for the same flow arrived at 20:42:47.
 
 ### (g) signal 5: no incident from rule (a) or (b)
 ### cmd (15:21:11): az monitor log-analytics query -w $WS --analytics-query "SecurityIncident | where TimeGenerated > ago(1d) | summarize arg_max(TimeGenerated, CreatedTime, Title, Status) by IncidentNumber | project IncidentNumber, CreatedTime, Title | order by IncidentNumber asc" -o table; date -u
@@ -85,10 +85,10 @@ Tue Nov 10 20:58:54 UTC 2026
 (no rows)
 Tue Nov 10 21:21:11 UTC 2026
 
-### note: no incident created in the last 24 h, run 51 min after step 1 (20:30 UTC), past the window rules (a) and (b) could fire in (PT10M frequency, PT1H lookback). So neither rule alerted on this attempt. (The six DNS incidents seen earlier in the Defender queue, IDs 7-12, were created 2026-11-08 by the S4 trigger, outside this 24 h window.)
-### A cross-check of all three rules being Enabled is in (a) (screenshot A1-active-rules.png).
+### note: no incident created in the last 24 h, run 51 min after step 1 (20:30 UTC), past the window rules (a) and (b) could fire in (PT10M frequency, PT1H lookback). So neither rule alerted on this attempt. (The six DNS incidents seen earlier in the Defender queue, IDs 7-12, were created 2026-11-08 by the EV-M3-03 trigger, outside this 24 h window.)
+### A cross-check of all three rules being Enabled is in (a) (screenshot EV-M3-04-active-rules.png).
 
 ### result
 ### Scenario #1, first run. Prevented: Yes. The SSH attempt from tier 2 to tier 0 left tier 2 (c) and reached the NVA (d), which dropped it (e); no packet reached the tier-0 NIC (f). tier 2's TCP connection to tier 0 port 22 failed (timed out) and there is no Allowed row at the tier-0 NIC, both parts of the pre-registered "prevented".
-### Detected: No. No incident from rule (a) or (b); the six DNS incidents are from the 11-08 S4 trigger (g). The attempt shows only in Syslog (e). MTTD: n/a.
+### Detected: No. No incident from rule (a) or (b); the six DNS incidents are from the 11-08 EV-M3-03 trigger (g). The attempt shows only in Syslog (e). MTTD: n/a.
 ### Matches the pre-registration (Prevented: Yes, by the NVA fwd-t2t0-drop, NSG a second layer not reached; Detected: No; MTTD n/a). This is the matrix's initial row for #1.

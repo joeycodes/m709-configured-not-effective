@@ -14,7 +14,7 @@
 //   by design (storage accounts, disks, the workspace ID) and would match.
 // - .internal.cloudapp.net: the VNet's DNS search suffix. A failed lookup is
 //   retried with it appended, but the bare name is logged first, so dropping
-//   the suffixed copy loses no query (evidence D1).
+//   the suffixed copy loses no query (evidence EV-M3-01).
 //
 // Limits:
 // - Parent = last two labels: a suffix such as co.uk is split wrongly, and all

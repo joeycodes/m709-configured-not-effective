@@ -16,8 +16,8 @@ the instance metadata service. TECHNICAL-DESIGN §7 lists eight; the other four
 stratus-red-team as tooling.
 
 M3 ends on November 30. `infra/` is frozen on November 27 for the final run,
-and the Sentinel trial ends the same day. Week 9 added DNS logging (#59, D1)
-and closed tier 0's internet egress, a gap found in M2 (R5 (e); #60, E1).
+and the Sentinel trial ends the same day. Week 9 added DNS logging (#59, EV-M3-01)
+and closed tier 0's internet egress, a gap found in M2 (R5 (e); #60, EV-M3-02).
 
 **Decision**
 
@@ -42,9 +42,9 @@ and closed tier 0's internet egress, a gap found in M2 (R5 (e); #60, E1).
   meaningless is fixed first and recorded as its own evidence, and the
   pre-registration lists the fix as a precondition. Example: tier 0 could
   reach the internet over HTTPS, so #4 would have tested nothing; fixed in
-  #60 (E1).
+  #60 (EV-M3-02).
 - **Footholds depend on the scenario.** #1 and #3 start from tier 2. #4 starts
-  from tier 0: the data is there, and after E1 Azure DNS is its only way out.
+  from tier 0: the data is there, and after EV-M3-02 Azure DNS is its only way out.
   #6 starts from a VM with a managed identity.
 - **#4 tests detection only.** The queries go to a domain the lab does not
   own. The test checks whether detection (c) fires.
@@ -57,7 +57,7 @@ and closed tier 0's internet egress, a gap found in M2 (R5 (e); #60, E1).
 - **Prevented, detected and MTTD follow the pre-registration.** MTTD runs from
   the first attempt to incident creation. Results go into the matrix
   (TECHNICAL-DESIGN §8).
-- **Each detection is tested with a synthetic trigger first** (S2, S3, S4).
+- **Each detection is tested with a synthetic trigger first** (S2, S3, EV-M3-03).
 - **A final run** in week 12 runs every scenario once on a fresh build from
   `main` after the freeze. Its results go into the report.
 
@@ -65,7 +65,7 @@ and closed tier 0's internet egress, a gap found in M2 (R5 (e); #60, E1).
 - (−) #4 does not show that data can leave. That would need a name server the
   lab controls.
 - (−) Results describe the baseline after its fixes. The state before each fix
-  is in that fix's evidence (E1).
+  is in that fix's evidence (EV-M3-02).
 - (−) It is not yet checked which atomic tests run on Ubuntu; many are
   Windows-only. Manual steps are harder to repeat than atomic tests.
 - (−) After the trial ends, ingestion is billed. The cost is small and capped
@@ -82,7 +82,7 @@ and closed tier 0's internet egress, a gap found in M2 (R5 (e); #60, E1).
 - *A working DNS channel* (a bought domain and an own name server) — costs
   money and needs approval; not needed to test detection (c).
 - *CALDERA or stratus-red-team* — not needed for four single-step scenarios.
-  CALDERA's agents would also need internet egress from tier 0, which E1
+  CALDERA's agents would also need internet egress from tier 0, which EV-M3-02
   removed. May be reconsidered if time is left.
 - *A separate regression run* — the final run is already a fresh build after
   the last change.
