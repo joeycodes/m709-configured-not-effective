@@ -8,8 +8,8 @@
 ###   attempt 1, 09:51:39-09:59:15, failure: creating azurerm_network_watcher_flow_log.vnet["hub"] (fl-cne-hub) returned InternalServerError, "An error occurred.", no detail
 ###   attempt 2, 10:06:28-10:07:31, success, after the leftover was deleted by hand (below). "Re-run failed jobs" on github.com returned HTTP 500; rerun with gh run rerun --failed (same run ID)
 ### cmd (between attempts 1 and 2): az network watcher flow-log delete --location canadaeast --name fl-cne-hub
-### note: the failed create left fl-cne-hub in Azure in state Failed, outside Terraform's state, as in S3 (a). Deleted rather than imported, for the same reason: importing would adopt a broken resource. Attempt 2 created it from code (log, 16:07:23 UTC: "azurerm_network_watcher_flow_log.vnet["hub"]: Creation complete after 12s").
-### note: the same fault as S3 (a) on 2026-10-30, there on fl-cne-tier2. Two cases on two different VNets, so not tied to one VNet; cause unknown. For the Week 13 build record.
+### note: the failed create left fl-cne-hub in Azure in state Failed, outside Terraform's state, as in EV-M2-17 (a). Deleted rather than imported, for the same reason: importing would adopt a broken resource. Attempt 2 created it from code (log, 16:07:23 UTC: "azurerm_network_watcher_flow_log.vnet["hub"]: Creation complete after 12s").
+### note: the same fault as EV-M2-17 (a) on 2026-10-30, there on fl-cne-tier2. Two cases on two different VNets, so not tied to one VNet; cause unknown. For the Week 13 build record.
 
 ### (b) the resources
 ### cmd: az resource list -g rg-cne-lab --resource-type Microsoft.Network/dnsResolverPolicies --query "[].name" -o tsv

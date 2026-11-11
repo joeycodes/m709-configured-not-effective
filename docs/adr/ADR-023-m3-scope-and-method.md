@@ -17,7 +17,7 @@ stratus-red-team as tooling.
 
 M3 ends on November 30. `infra/` is frozen on November 27 for the final run,
 and the Sentinel trial ends the same day. Week 9 added DNS logging (#59, EV-M3-01)
-and closed tier 0's internet egress, a gap found in M2 (R5 (e); #60, EV-M3-02).
+and closed tier 0's internet egress, a gap found in M2 (EV-M2-14 (e); #60, EV-M3-02).
 
 **Decision**
 
@@ -57,7 +57,7 @@ and closed tier 0's internet egress, a gap found in M2 (R5 (e); #60, EV-M3-02).
 - **Prevented, detected and MTTD follow the pre-registration.** MTTD runs from
   the first attempt to incident creation. Results go into the matrix
   (TECHNICAL-DESIGN §8).
-- **Each detection is tested with a synthetic trigger first** (S2, S3, EV-M3-03).
+- **Each detection is tested with a synthetic trigger first** (EV-M2-16, EV-M2-17, EV-M3-03).
 - **A final run** in week 12 runs every scenario once on a fresh build from
   `main` after the freeze. Its results go into the report.
 

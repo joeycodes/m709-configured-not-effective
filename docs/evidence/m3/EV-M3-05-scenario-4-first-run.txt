@@ -75,7 +75,7 @@ CreatedTime                   IncidentNumber    TableName
 
 ### note: incident 13, from rule (c), High, Command and control. Created 21:43:23 UTC. ago(1h) and arg_max keep only this run's incident; the 11-08 EV-M3-03 incidents (7-12) fall outside the hour.
 ### note: MTTD = 21:43:23 - 21:29:25 = 13 min 58 s, from the first query to incident creation. Same order as EV-M3-03 (11 min 41 s): DNS log ingestion plus the rule's PT10M cadence.
-### note: as in S2/S3/EV-M3-03, the incident maps no entities, so its Defender priority score stays 2 (below the default queue filter). Entity mapping is a later M3 item.
+### note: as in EV-M2-16/EV-M2-17/EV-M3-03, the incident maps no entities, so its Defender priority score stays 2 (below the default queue filter). Entity mapping is a later M3 item.
 
 ### result
 ### Scenario #4, first run. Prevented: No. No control blocks the queries: tier-0 egress to the internet is denied (a), but DNS to Azure DNS is platform traffic that the egress rules do not cover, so all 30 queries left and were logged (c).

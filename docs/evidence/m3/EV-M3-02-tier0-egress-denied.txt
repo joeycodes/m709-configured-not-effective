@@ -1,6 +1,6 @@
 ### 2026-11-05 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
-### test: tier 0 can no longer reach public addresses, while run-command, Azure DNS and tier 1 to tier 0 still work (fix for the gap in R5 (e); precondition of scenario #4 in attack/scenarios/PREREGISTRATION.md)
-### note: before: R5 (e), 2026-10-27. The NVA accepted four connections from 10.101.0.4 to 20.209.64.68; nothing on the path limited tier 0's egress.
+### test: tier 0 can no longer reach public addresses, while run-command, Azure DNS and tier 1 to tier 0 still work (fix for the gap in EV-M2-14 (e); precondition of scenario #4 in attack/scenarios/PREREGISTRATION.md)
+### note: before: EV-M2-14 (e), 2026-10-27. The NVA accepted four connections from 10.101.0.4 to 20.209.64.68; nothing on the path limited tier 0's egress.
 ### note: change: #60 (1adf828), two layers. (1) NSG rule DenyTier0toInternet on the tier-0 workload subnet: priority 100, outbound, 10.101.0.0/16 to service tag Internet. (2) On the NVA, a forward-chain drop for tier-0 sources to any address outside RFC 1918, prefix fwd-t0out-drop. Queries to Azure DNS (168.63.129.16) cross neither: they are not steered by UDRs and not subject to NSG rules unless a rule names the AzurePlatformDNS tag. Scenario #4 relies on that.
 ### note: Terraform apply 42062186209 (push, 1adf828), 10:12:59-10:16:39 (NVA recreated, custom_data changed). Tier 0 10.101.0.4, tier 1 10.102.0.4, NVA 10.100.2.4.
 
@@ -32,7 +32,7 @@ curl: (28) Connection timed out after 5001 milliseconds
 Thu Nov  5 16:25:27 UTC 2026
 22 OPEN
 
-### note: the fix limits tier 0 to public addresses only; tier 1 still reaches tier 0's SSH port, as in R5 (b).
+### note: the fix limits tier 0 to public addresses only; tier 1 still reaches tier 0's SSH port, as in EV-M2-14 (b).
 
 ### (c) the NVA's ruleset
 ### cmd (10:26): az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts 'date -u; nft list chain inet filter forward | grep -E "t0out|t2t0"'
@@ -53,7 +53,7 @@ denytier0tointernet  20.60.142.33    443         2026-11-05T16:23:23.087Z  10.10
 denytier0tointernet  184.31.144.229  443         2026-11-05T16:23:29.001Z  10.101.0.4  PrimaryResult
 
 ### note: both denied by the new NSG rule (Traffic Analytics prints rule names in lower case). 184.31.144.229:443 at 16:23:29 is the curl to www.microsoft.com, over IPv4.
-### note: 20.60.142.33:443 at 16:23:23, six seconds before the script's date -u, came from tier 0 while the run-command was starting. R5 (c) recorded the same address as accepted from tier 1 and took it for a storage endpoint used by run-command; R5 (e) expected that blocking such endpoints would break run-command. It did not. What this connection is, and whether anything on tier 0 now fails without it, is not traced.
+### note: 20.60.142.33:443 at 16:23:23, six seconds before the script's date -u, came from tier 0 while the run-command was starting. EV-M2-14 (c) recorded the same address as accepted from tier 1 and took it for a storage endpoint used by run-command; EV-M2-14 (e) expected that blocking such endpoints would break run-command. It did not. What this connection is, and whether anything on tier 0 now fails without it, is not traced.
 
 ### result
-### Tier 0's egress to public addresses is denied at its NSG, with the NVA as a second layer that was not reached. Run-command, Azure DNS and tier 1 to tier 0 still work. The gap in R5 (e) is closed. One connection to an Azure address (20.60.142.33) is now denied with no visible effect; noted, not traced.
+### Tier 0's egress to public addresses is denied at its NSG, with the NVA as a second layer that was not reached. Run-command, Azure DNS and tier 1 to tier 0 still work. The gap in EV-M2-14 (e) is closed. One connection to an Azure address (20.60.142.33) is now denied with no visible effect; noted, not traced.

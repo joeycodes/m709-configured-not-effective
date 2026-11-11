@@ -1,7 +1,7 @@
 ### 2026-11-10 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
 ### test: scenario #1, lateral movement tier 2 -> tier 0 (T1021.004), first run, against the baseline as built. Runbook: attack/scenarios/scenario-1-lateral-movement.md. Pre-registration: attack/scenarios/PREREGISTRATION.md #1 (committed 2026-11-03, before this run).
 ### note: expected outcome as pre-registered: Prevented: Yes (NVA drops, fwd-t2t0-drop) · Detected: No · MTTD: n/a. Foothold vm-cne-tier2 10.103.0.4; target vm-cne-tier0 10.101.0.4.
-### note: build: Terraform apply 42892956270 (main). The flow-log InternalServerError recurred, on fl-cne-tier2, and was handled as before: delete the Failed flow log, rerun. Fourth occurrence (S3, EV-M3-01, EV-M3-03); for the Week 13 build record.
+### note: build: Terraform apply 42892956270 (main). The flow-log InternalServerError recurred, on fl-cne-tier2, and was handled as before: delete the Failed flow log, rerun. Fourth occurrence (EV-M2-17, EV-M3-01, EV-M3-03); for the Week 13 build record.
 
 ### (a) preconditions
 ### assertion: Reachability assertion 42894681967, success, 57 s. An earlier run, 42894189518, ended after 11 s with no result, after the failed apply attempt.

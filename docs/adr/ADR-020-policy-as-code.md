@@ -34,11 +34,11 @@ spokes send to — had no check before deployment. M2 week 5 adds one.
 
   | Rule | Requirement | Evidence |
   |---|---|---|
-  | `zone_tag` | Every resource that can carry tags has a `zone` tag, one of `hub`, `tier0`, `tier1`, `tier2`, `onprem`. Resource groups are exempt. | P1 |
-  | `pip_tier0` | No tier-0 NIC has a public IP; no public IP is tagged tier 0. | P2 |
-  | `spoke_routes` | Each tier route table sends `0.0.0.0/0` and `10.100.0.0/14` to a VirtualAppliance; its routes reference the hub NIC and nothing else; a next hop known at plan time equals `lab.nva_ip`. | P3 |
-  | `nva_ip` | The hub NIC holds `lab.nva_ip` (`10.100.2.4`), statically allocated. | P4 |
-  | Checkov `CKV2_AZURE_31` | Every subnet that can take an NSG has one. No Rego rule is written for it. | P5 |
+  | `zone_tag` | Every resource that can carry tags has a `zone` tag, one of `hub`, `tier0`, `tier1`, `tier2`, `onprem`. Resource groups are exempt. | EV-M2-01 |
+  | `pip_tier0` | No tier-0 NIC has a public IP; no public IP is tagged tier 0. | EV-M2-02 |
+  | `spoke_routes` | Each tier route table sends `0.0.0.0/0` and `10.100.0.0/14` to a VirtualAppliance; its routes reference the hub NIC and nothing else; a next hop known at plan time equals `lab.nva_ip`. | EV-M2-03 |
+  | `nva_ip` | The hub NIC holds `lab.nva_ip` (`10.100.2.4`), statically allocated. | EV-M2-04 |
+  | Checkov `CKV2_AZURE_31` | Every subnet that can take an NSG has one. No Rego rule is written for it. | EV-M2-05 |
 
 - **The standard is held outside the configuration.** `lab.nva_ip` lives in
   `infra/policy/lab.rego`, so changing the address in the Terraform code does
@@ -61,9 +61,9 @@ spokes send to — had no check before deployment. M2 week 5 adds one.
   effect.
 
 **Consequences**
-- (+) Every rule above was shown to fire on a deliberate violation (P1–P5),
-  and the gate as a whole on a pull request into `main` (P7).
-- (−) **A rule fails silently where it selects.** In P7, one wrong field name
+- (+) Every rule above was shown to fire on a deliberate violation (EV-M2-01–EV-M2-05),
+  and the gate as a whole on a pull request into `main` (EV-M2-07).
+- (−) **A rule fails silently where it selects.** In EV-M2-07, one wrong field name
   (`tags` → `tag`) made `spoke_routes` match nothing, and a plan missing a
   spoke route passed the plan check. Only the unit tests that expect a deny
   failed; the merge stayed blocked because they are a required check. Mock
@@ -72,13 +72,13 @@ spokes send to — had no check before deployment. M2 week 5 adds one.
   same absent value is `null` on a fresh build and `""` once the lab is
   deployed. `pip_tier0`, tested only on fresh builds, denied the tier-0 NIC on
   the first deployed-state plan; it now accepts both, and all eight rules
-  pass on a plan of either shape (P6, P8).
+  pass on a plan of either shape (EV-M2-06, EV-M2-08).
 - (−) **Some rules hold only together.** The spokes' next hop is unknown at
   plan time: `spoke_routes` requires it to reference the hub NIC, and `nva_ip`
   pins that NIC's address.
 - (−) **Known gaps.** The zone tag is self-declared; `pip_tier0` sees a public
   IP on the NIC only, not a public load balancer; the Checkov skip on
-  `azurerm_subnet.reserved` covers any subnet placed in that block (P5 e); a
+  `azurerm_subnet.reserved` covers any subnet placed in that block (EV-M2-05 e); a
   property with no rule is not checked. W6 tests the deployed result
   regardless.
 
@@ -90,4 +90,4 @@ spokes send to — had no check before deployment. M2 week 5 adds one.
   complement this gate, not replace it.
 
 **Verification**
-Evidence P1–P8 in `docs/evidence/m2/`.
+Evidence EV-M2-01–EV-M2-08 in `docs/evidence/m2/`.
