@@ -1,4 +1,4 @@
-# Detection (a), scenario #1 (ADR D21): a flow from tier 2 accepted at a tier-0
+# Detection (a), scenario #1 (ADR-021): a flow from tier 2 accepted at a tier-0
 # NIC. The NVA (fwd-t2t0-drop) and the tier-0 NSG (DenyTier2ToTier0) both block
 # this path, so any row means at least one layer has failed. The query lives in
 # infra/detections/; the rule sits in the persistent layer with the workspace it
@@ -18,7 +18,7 @@ resource "azurerm_sentinel_alert_rule_scheduled" "t2_to_t0_accepted" {
   techniques                 = ["T1021"]
 }
 
-# Detection (b), scenario #3 (ADR D21): a connection that reached a tier-0 NIC
+# Detection (b), scenario #3 (ADR-021): a connection that reached a tier-0 NIC
 # from outside tier 0 with no matching fwd-accept line from the NVA. Traffic into
 # tier 0 must cross the NVA, so a missing record means it was not inspected:
 # either it bypassed the NVA (e.g. a spoke-to-spoke peering whose /16 route beats

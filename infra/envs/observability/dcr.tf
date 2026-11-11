@@ -1,4 +1,4 @@
-# DCR for the hub NVA's nftables logs (ADR D21): collect the kern facility
+# DCR for the hub NVA's nftables logs (ADR-021): collect the kern facility
 # at Warning and above, send it to the workspace. It names no VM; the lab
 # layer binds the NVA to it with an association.
 resource "azurerm_monitor_data_collection_rule" "nva_syslog" {

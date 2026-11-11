@@ -6,7 +6,7 @@
 # table must hold 0.0.0.0/0 and 10.100.0.0/14 as user routes to the NVA,
 # Active, and Azure's own 0.0.0.0/0 -> Internet must be Invalid. A route
 # table that exists but is not associated with the subnet passes every
-# plan check and fails here (ADR D20, rule 3d).
+# plan check and fails here (ADR-020, rule 3d).
 #
 # Detective, not preventive: it runs after the change is deployed and
 # cannot block a merge. Run it by hand (workflow_dispatch) to check for

@@ -1,6 +1,6 @@
 # ADR-017: A persistent observability layer, in its own state
 
-Decision D17. Written during bootstrap and M1 as a section of
+Written during bootstrap and M1 as a section of
 [ADR-000-bootstrap.md](ADR-000-bootstrap.md), which keeps the shared context
 (constraints and the staged-hardening principle) and the known limitations
 L1 to L3. Index: [README.md](README.md).
@@ -12,7 +12,7 @@ The project's claims rest on evidence: what a control did, recorded at the time
 it did it. Until now that evidence had nowhere durable to go. SCHEDULE.md (week 2)
 called for a logging layer to be built "now, not later"; it was not built.
 
-D16 showed what that cost. The subscription's Activity Log was the only record of
+ADR-016 showed what that cost. The subscription's Activity Log was the only record of
 the region policy being deleted, and in its default form it is retained for 90
 days, can only be read by querying it directly, and returned nothing on the first
 query because `az monitor activity-log list` stops at 50 events. An export to a
@@ -20,7 +20,7 @@ workspace is not retroactive, so every day it is postponed is a day of history
 that will not exist when M2 and M3 need it.
 
 The evidence produced by the lab itself has the same problem in a sharper form.
-The lab is destroyed nightly (D12), and anything stored inside it goes with it.
+The lab is destroyed nightly (ADR-012), and anything stored inside it goes with it.
 
 **Decision**
 A new Terraform root, `infra/envs/observability`, holds a persistent layer:
@@ -43,7 +43,7 @@ A new Terraform root, `infra/envs/observability`, holds a persistent layer:
   is found missing only when it is needed.
 - **Evidence storage account** `sacneevidence`, in `canadaeast` because VNet flow
   logs require the storage account and the VNet to share a region. Replicated
-  `GRS`: unlike the state file (D6), evidence cannot be rebuilt from code, and
+  `GRS`: unlike the state file (ADR-006), evidence cannot be rebuilt from code, and
   `canadaeast` has no availability zones, so `ZRS` is not an option. Shared key,
   local users and public blob access are disabled; blob versioning and 30-day
   soft delete for blobs and containers are enabled; infrastructure encryption is
@@ -59,7 +59,7 @@ A new Terraform root, `infra/envs/observability`, holds a persistent layer:
   different state, not by a filter that could be mistyped.
 - (+) The Activity Log is retained, queryable and available to alert rules from
   the first apply onward.
-- (−) Not retroactive. Nothing before the apply date is in the workspace; the D16
+- (−) Not retroactive. Nothing before the apply date is in the workspace; the ADR-016
   events survive only in the sanitised export committed under `docs/adr/assets/`.
 - (−) The daily cap bounds a runaway at roughly a few US dollars a day, but past
   the cap the rest of that day's logs are dropped without error. An attacker who
@@ -84,7 +84,7 @@ A new Terraform root, `infra/envs/observability`, holds a persistent layer:
   identity is `Contributor`. Container soft delete is the only protection at
   that level.
 - Five Checkov findings are accepted as inline exceptions, each with its reason
-  in the resource block, following D14: public network access (`CKV_AZURE_59`)
+  in the resource block, following ADR-014: public network access (`CKV_AZURE_59`)
   and no private endpoint (`CKV2_AZURE_33`), both the known gap above;
   Microsoft-managed rather than customer-managed keys (`CKV2_AZURE_1`), since the
   threat a customer-managed key addresses is outside this project's model and

@@ -91,7 +91,7 @@ re-run uses tier-1 → tier-0.
 - **Tier-0 egress contradicts the design.** TECHNICAL-DESIGN.md gives tier-0
   default-deny egress; the deployed ruleset lets tier-0 reach the internet and
   open flows to other tiers. Found in review, not by a test; deferred to M3
-  (ADR D18). (EV-M1-20, EV-M1-24 c)
+  (ADR-018). (EV-M1-20, EV-M1-24 c)
 - **The forward chain is not quiet.** With egress open the tiers generate
   background traffic of unknown purpose, so only counters on rules specific to
   the tested flow can be read exactly. (EV-M1-23, EV-M1-25)
@@ -102,7 +102,7 @@ re-run uses tier-1 → tier-0.
 - **BGP routes stop at the gateways.** They are in FRR and the kernel on both
   gateways, not in Azure effective routes; the tiers reach on-premises through
   their default route to the NVA. The M1 gate, which asked for effective
-  routes, is restated in ADR D19. (EV-M1-31, EV-M1-19)
+  routes, is restated in ADR-019. (EV-M1-31, EV-M1-19)
 - **The hub's port-4500 rule reads zero once the tunnel is up.** Its traffic
   matches `ct state established` first, consistent with the tunnel having been
   negotiated before the ruleset was loaded at boot; unconfirmed. (EV-M1-29 c)

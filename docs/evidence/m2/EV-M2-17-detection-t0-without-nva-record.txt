@@ -1,5 +1,5 @@
 ### 2026-10-30 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
-### test: detection (b) stays silent for a connection into tier 0 that the NVA logged, and raises an incident for one it did not log (ADR D21; scenario #3's detection)
+### test: detection (b) stays silent for a connection into tier 0 that the NVA logged, and raises an incident for one it did not log (ADR-021; scenario #3's detection)
 ### note: this is the rule's own synthetic trigger, not a run of scenario #3. What (b) sees is a connection that reached a tier-0 NIC from outside tier 0 with no fwd-accept line from the NVA. In this architecture that happens when traffic skips the NVA (spokes peer only with the hub, so removing a UDR breaks the path; a spoke-to-spoke peering would add a /16 route that beats the /14 UDR) or when the NVA accepts it with a rule that does not log. The trigger uses the second; the first is scenario #3 in M3.
 ### note: rule by #54 (6db28d0), Terraform apply (observability) 41130805993, 15:24:22-15:25:04. Lab: Terraform apply 41131158372, see (a). tier 1 10.102.0.4, tier 0 10.101.0.4, NVA 10.100.2.4.
 

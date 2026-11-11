@@ -4,7 +4,7 @@
 # See docs/adr/ADR-000-bootstrap.md L2: on a single-owner subscription
 # that is a documented discipline, not a technical control.
 #
-# There is deliberately no approval gate yet (ADR D11). A merge is a
+# There is deliberately no approval gate yet (ADR-011). A merge is a
 # deploy. The `production` environment with a required reviewer arrives
 # in M2; when it does, it is added as `environment: production` on the
 # job below, and the federated credential is narrowed to match.

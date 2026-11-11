@@ -1,7 +1,7 @@
 ### 2026-10-20 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h; the session ran 15:00 to 18:40 UTC-6)
-### test: VNet flow logs with Traffic Analytics (ADR D21), built from main, carry the lab's traffic from the five VNets into the observability workspace
+### test: VNet flow logs with Traffic Analytics (ADR-021), built from main, carry the lab's traffic from the five VNets into the observability workspace
 ### note: the path has two stages, checked separately. Stage 1: Network Watcher writes raw flow records to the staging account sacneflowlogs (container insights-logs-flowlogflowevent). Stage 2: Traffic Analytics reads them every 10 minutes and writes the processed copy to log-cne-observability (NTANetAnalytics and the other NTA* tables). The account is observed through its Transactions metric split by API (control plane); the workspace by query.
-### note: the account disallows shared key and the workspace disallows local auth (ADR D21). Whether either stage works under those settings was an open question before this run.
+### note: the account disallows shared key and the workspace disallows local auth (ADR-021). Whether either stage works under those settings was an open question before this run.
 ### note: built by #38 (account, observability layer, 5f9f7bc) and #39 (flow logs, lab layer, 5640148). The author's account holds no data-plane role on the account (az storage blob list --auth-mode login is refused), so blobs were not listed directly; the metric stands in for it.
 
 ### (a) first build: the flow logs race the subnets

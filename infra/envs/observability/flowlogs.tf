@@ -1,15 +1,15 @@
-# Raw VNet flow logs (ADR D21): a staging area. Traffic Analytics processes
+# Raw VNet flow logs (ADR-021): a staging area. Traffic Analytics processes
 # them into the workspace, which holds the copy that is queried and kept.
 # Separate from the evidence account: LRS, no versioning, deleted after 30
 # days. Persistent so unprocessed logs survive the nightly destroy; same
 # region as the VNets, as flow logs require.
 
 resource "azurerm_storage_account" "flowlogs" {
-  #checkov:skip=CKV_AZURE_59:Public endpoint kept for Network Watcher (writes) and Traffic Analytics (reads); restricting it to trusted Azure services is untested for flow logs. Access is Entra-only. Known gap, ADR D21
-  #checkov:skip=CKV2_AZURE_33:Private endpoint not deployed; no persistent VNet exists to host it and the lab VNets are destroyed nightly. ADR D17
+  #checkov:skip=CKV_AZURE_59:Public endpoint kept for Network Watcher (writes) and Traffic Analytics (reads); restricting it to trusted Azure services is untested for flow logs. Access is Entra-only. Known gap, ADR-021
+  #checkov:skip=CKV2_AZURE_33:Private endpoint not deployed; no persistent VNet exists to host it and the lab VNets are destroyed nightly. ADR-017
   #checkov:skip=CKV2_AZURE_1:Microsoft-managed keys with infrastructure encryption; customer-managed keys address a threat outside this project's model
   #checkov:skip=CKV_AZURE_33:Queue service is not used by this account
-  #checkov:skip=CKV_AZURE_206:LRS by design. Raw flow logs are processed into the workspace within minutes and deleted after 30 days; losing this region's copy loses nothing the workspace does not already hold. ADR D21
+  #checkov:skip=CKV_AZURE_206:LRS by design. Raw flow logs are processed into the workspace within minutes and deleted after 30 days; losing this region's copy loses nothing the workspace does not already hold. ADR-021
   name                              = "sacneflowlogs"
   resource_group_name               = azurerm_resource_group.observability.name
   location                          = azurerm_resource_group.observability.location
@@ -29,7 +29,7 @@ resource "azurerm_storage_account" "flowlogs" {
   # services, has not been tested with flow logs; it is tried once flow logs
   # are shown to arrive with this one. Access is still Entra-only (shared key
   # is off), so this is exposure of an endpoint, not of the data. Known gap,
-  # ADR D21.
+  # ADR-021.
   public_network_access_enabled = true
   tags                          = local.common_tags
 

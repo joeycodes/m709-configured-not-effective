@@ -1,5 +1,5 @@
 ### 2026-10-27 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
-### test: Microsoft Sentinel is enabled on the observability workspace by the pipeline, and the 31-day free trial starts with it (ADR D21)
+### test: Microsoft Sentinel is enabled on the observability workspace by the pipeline, and the 31-day free trial starts with it (ADR-021)
 ### note: infra/envs/observability/sentinel.tf, one resource (azurerm_sentinel_log_analytics_workspace_onboarding) on log-cne-observability. Sentinel holds no data of its own; its analytics rules query the workspace's tables. Per Microsoft's billing page, enabling Sentinel on a workspace waives Log Analytics ingestion and Sentinel analysis up to 10 GB/day for 31 days (20 workspaces per tenant); there is no separate trial switch.
 ### note: Microsoft.SecurityInsights checked registered before the merge.
 

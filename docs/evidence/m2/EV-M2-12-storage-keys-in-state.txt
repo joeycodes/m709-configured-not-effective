@@ -24,4 +24,4 @@ key2   2026-10-21T00:36:14.485193+00:00
 ### terraform -chdir=infra/envs/observability state pull | jq '[.resources[] | select(.type=="azurerm_storage_account") | {name, key_in_state: ((.instances[0].attributes.primary_access_key // "") != "")}]'
 
 ### result
-### Keeping keys out of the repository does not keep them out of reach: Terraform fetches them on every run and stores them next to everything else in state. Disallowing shared key is what makes that harmless; turning it on, even for a 50-minute test, made the state a credential store. Any future decision to keep shared key on (ADR D21) has to count this, together with who can read state.
+### Keeping keys out of the repository does not keep them out of reach: Terraform fetches them on every run and stores them next to everything else in state. Disallowing shared key is what makes that harmless; turning it on, even for a 50-minute test, made the state a credential store. Any future decision to keep shared key on (ADR-021) has to count this, together with who can read state.

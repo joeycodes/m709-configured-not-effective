@@ -1,6 +1,6 @@
 # ADR-008: RBAC split across control plane and data plane
 
-Decision D8. Written during bootstrap and M1 as a section of
+Written during bootstrap and M1 as a section of
 [ADR-000-bootstrap.md](ADR-000-bootstrap.md), which keeps the shared context
 (constraints and the staged-hardening principle) and the known limitations
 L1 to L3. Index: [README.md](README.md).
@@ -14,7 +14,7 @@ inside them, via the service endpoint). The two use different roles and, in
 practice, different access tokens with different audiences.
 
 `Contributor` covers only the control plane. It can delete the storage account but
-cannot read a blob in it — and with D7 applied, there is no longer a key-based
+cannot read a blob in it — and with ADR-007 applied, there is no longer a key-based
 route around that. Terraform needs both: control-plane rights to create
 infrastructure, and data-plane rights to read, write and lease the state blob.
 

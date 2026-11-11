@@ -1,6 +1,6 @@
 resource "azurerm_storage_account" "evidence" {
-  #checkov:skip=CKV_AZURE_59:Public endpoint kept for CI runners and the workstation, which have no private path; access is Entra-only. Known gap, ADR D17
-  #checkov:skip=CKV2_AZURE_33:Private endpoint not deployed; no persistent VNet exists to host it and the lab VNets are destroyed nightly. ADR D17
+  #checkov:skip=CKV_AZURE_59:Public endpoint kept for CI runners and the workstation, which have no private path; access is Entra-only. Known gap, ADR-017
+  #checkov:skip=CKV2_AZURE_33:Private endpoint not deployed; no persistent VNet exists to host it and the lab VNets are destroyed nightly. ADR-017
   #checkov:skip=CKV2_AZURE_1:Microsoft-managed keys with infrastructure encryption; customer-managed keys address a threat outside this project's model
   #checkov:skip=CKV_AZURE_33:Queue service is not used by this account
   name                              = "sacneevidence"
@@ -20,7 +20,7 @@ resource "azurerm_storage_account" "evidence" {
   # and the NVA all reach the data plane over the public endpoint, and none of
   # them has a private path yet. Access is still Entra-only (shared key is off),
   # so this is exposure of an endpoint, not of the data. Recorded as a known
-  # gap in ADR D17 rather than scheduled.
+  # gap in ADR-017 rather than scheduled.
   public_network_access_enabled = true
   tags                          = local.common_tags
 

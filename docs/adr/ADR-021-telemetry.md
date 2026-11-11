@@ -4,7 +4,7 @@
 **Date:** 2026-10-17
 **Milestone:** M2 (week 7)
 
-Decision D21. Index of all decisions: [README.md](README.md).
+Index of all decisions: [README.md](README.md).
 
 ---
 
@@ -12,7 +12,7 @@ Decision D21. Index of all decisions: [README.md](README.md).
 M3's floor is scenarios #1 (lateral movement tier 2 → tier 0) and #4 (DNS
 tunnelling), detected by three rules planned for week 8: (a) an accepted flow
 from tier 2 to tier 0, (b) a flow reaching tier 0 with no matching NVA record,
-and (c) DNS query entropy, length and rate. The workspace from D17,
+and (c) DNS query entropy, length and rate. The workspace from ADR-017,
 `log-cne-observability`, already receives the subscription's Activity Log. The
 rest of the telemetry has to be chosen.
 
@@ -24,7 +24,7 @@ rest of the telemetry has to be chosen.
   | VNet flow logs with Traffic Analytics, 10-minute interval | `NTANetAnalytics` | (a), (b) |
   | NVA nftables log rules → rsyslog → Azure Monitor Agent and a DCR | `Syslog` | (b), and that the NVA drop fires |
   | DNS security policy linked to the tier VNets | `DNSQueryLogs` | (c) |
-  | Activity Log (D17) | `AzureActivity` | control-plane changes, such as the drift in evidence EV-M2-09 |
+  | Activity Log (ADR-017) | `AzureActivity` | control-plane changes, such as the drift in evidence EV-M2-09 |
 
 - **DNS is logged by a DNS security policy, not by a resolver on the NVA.** The
   VMs keep resolving through Azure DNS, and the policy logs those queries with
@@ -34,7 +34,7 @@ rest of the telemetry has to be chosen.
   user-defined routes do not steer, so a VM can reach Azure DNS directly unless
   an NSG rule prevents it. DNS sent to an outside resolver crosses the NVA on
   the default route and is covered by the flow logs and the NVA log.
-- **Microsoft Sentinel, on the D17 workspace, enabled when week 8 starts.**
+- **Microsoft Sentinel, on the ADR-017 workspace, enabled when week 8 starts.**
   Sentinel stores nothing of its own; it queries the workspace's tables. Its
   31-day trial waives ingestion up to 10 GB/day and counts from the day it is
   enabled, so it is started when detections are written rather than when data

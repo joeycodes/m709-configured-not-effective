@@ -37,7 +37,7 @@ A full topology diagram lives in `docs/diagrams/` (exported from the source `.dr
              [ simulated on-premises ]
 ```
 
-**Connectivity choice.** The tunnel is terminated by self-hosted FRR + strongSwan VMs at both ends (cheap, rebuilds in minutes, full BGP timer control). The managed Azure VPN Gateway is not used: the validation window planned for it was dropped, because it would test a connectivity product rather than a security control (ADR D19). Inspection is likewise self-hosted (nftables now, Suricata from M2), with the managed Azure Firewall raised only in a time-boxed validation window if one is run.
+**Connectivity choice.** The tunnel is terminated by self-hosted FRR + strongSwan VMs at both ends (cheap, rebuilds in minutes, full BGP timer control). The managed Azure VPN Gateway is not used: the validation window planned for it was dropped, because it would test a connectivity product rather than a security control (ADR-019). Inspection is likewise self-hosted (nftables now, Suricata from M2), with the managed Azure Firewall raised only in a time-boxed validation window if one is run.
 
 ---
 
@@ -63,7 +63,7 @@ Within each VNet, subnets are carved as /24s. The hub reserves 10.100.0.0/24 (`A
 
 - Spokes peer to the hub; there is no direct spoke-to-spoke peering.
 - User-defined routes (UDRs) on each spoke send `0.0.0.0/0` and inter-spoke traffic to the firewall's private IP as next hop.
-- eBGP runs between the on-prem edge gateway and the Azure tunnel endpoint (AS 65020 and 65010); each side learns the other's aggregate dynamically. The learned routes live in FRR and the kernel of the two gateways, not in Azure effective routes; the tiers reach on-premises through their default route to the NVA (ADR D19).
+- eBGP runs between the on-prem edge gateway and the Azure tunnel endpoint (AS 65020 and 65010); each side learns the other's aggregate dynamically. The learned routes live in FRR and the kernel of the two gateways, not in Azure effective routes; the tiers reach on-premises through their default route to the NVA (ADR-019).
 - The restricted tier (Tier-0) denies egress by default; any outbound destination is explicitly allow-listed.
 
 The security posture therefore depends on three network-layer controls: **segmentation** (NSG/ASG), **routing-enforced inspection** (UDR forcing traffic through the firewall), and **egress control** (default-deny plus allow-list). These three are the objects under test.
@@ -102,12 +102,12 @@ configured-not-effective/
     control-effectiveness-matrix.md
 ```
 
-The code is split by environment, not by component: each directory under `envs/` is a root module with its own state, and the split follows lifecycle (persistent against ephemeral). There are no child modules; why is recorded in ADR D19.
+The code is split by environment, not by component: each directory under `envs/` is a root module with its own state, and the split follows lifecycle (persistent against ephemeral). There are no child modules; why is recorded in ADR-019.
 
 ### 4.2 State, identity, and bootstrap
 
 - **Remote state:** an Azure Storage backend, part of the persistent base (never destroyed). State locking via blob lease.
-- **Authentication:** GitHub Actions authenticates to Azure via OIDC federation. No long-lived credentials in CI. Infrastructure changes go through the pipeline by discipline, not by control: the author holds `Owner` on the subscription (ADR D8, limitation L2), so a local `apply` or an out-of-band change is possible. Such changes are caught as drift by the next `plan` (evidence EV-M1-15 to EV-M1-17, EV-M1-32).
+- **Authentication:** GitHub Actions authenticates to Azure via OIDC federation. No long-lived credentials in CI. Infrastructure changes go through the pipeline by discipline, not by control: the author holds `Owner` on the subscription (ADR-008, limitation L2), so a local `apply` or an out-of-band change is possible. Such changes are caught as drift by the next `plan` (evidence EV-M1-15 to EV-M1-17, EV-M1-32).
 - **Bootstrap (one-time, manual):** create the state backend and the OIDC trust. Everything else flows through CI. Recorded in an ADR.
 
 ---
@@ -121,7 +121,7 @@ CI is used from day one; it is the enforcement point for the "prevent" stage, no
 2. OIDC login to Azure
 3. `terraform init` (remote state); `fmt`, `validate`
 4. `terraform plan -out`
-5. **policy gate:** OPA/Rego via `conftest` against the plan; Checkov as the predefined scanner (tfsec was a design option, not adopted: ADR D20). Non-compliant plan fails the check.
+5. **policy gate:** OPA/Rego via `conftest` against the plan; Checkov as the predefined scanner (tfsec was a design option, not adopted: ADR-020). Non-compliant plan fails the check.
 6. **reachability assertion:** deterministic check that Tier-2 cannot reach Tier-0 (see 6.3). Fails the check if reachable.
 7. post results to the PR.
 

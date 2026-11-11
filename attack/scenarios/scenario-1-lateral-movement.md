@@ -5,7 +5,7 @@
 | ATT&CK | T1021.004 |
 | Pre-registration | [PREREGISTRATION.md](PREREGISTRATION.md#1-lateral-movement-tier-2--tier-0) |
 | Foothold | vm-cne-tier2 (10.103.0.4), Tier2 is an assume-breach endpoint |
-| Tooling | Manual, through run-command. No Atomic Red Team test for T1021.004 runs on Linux. (ADR D23 amendment) |
+| Tooling | Manual, through run-command. No Atomic Red Team test for T1021.004 runs on Linux. (ADR-023 amendment) |
 
 ## Preconditions
 

@@ -9,6 +9,6 @@ resource "azurerm_log_analytics_workspace" "this" {
 
   # Disable the workspace shared key. With it enabled, anyone holding the key
   # can ingest and query without Entra ID, bypassing RBAC and the audit trail.
-  # Same principle as disabling shared key on the storage accounts (ADR D7).
+  # Same principle as disabling shared key on the storage accounts (ADR-007).
   local_authentication_enabled = false
 }
