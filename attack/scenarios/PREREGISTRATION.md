@@ -2,7 +2,7 @@
 
 Expected control, signal and outcome for each scenario, committed before the scenario's first run. An entry is not edited after a run; a correction is appended under it as a dated amendment, with the reason.
 
-Scenarios as in [TECHNICAL-DESIGN.md](../../docs/TECHNICAL-DESIGN.md); detections in [`infra/detections/`](../../infra/detections); measured detection latency in [S2](../../docs/evidence/m2/S2-detection-t2-to-t0.txt) and [S3](../../docs/evidence/m2/S3-detection-t0-without-nva-record.txt).
+Scenarios as in [TECHNICAL-DESIGN.md](../../docs/TECHNICAL-DESIGN.md); detections in [`infra/detections/`](../../infra/detections); measured detection latency in [EV-M2-16](../../docs/evidence/m2/EV-M2-16-detection-t2-to-t0.txt) and [EV-M2-17](../../docs/evidence/m2/EV-M2-17-detection-t0-without-nva-record.txt).
 
 ## #1 Lateral movement, tier 2 → tier 0
 
@@ -22,7 +22,7 @@ Scenarios as in [TECHNICAL-DESIGN.md](../../docs/TECHNICAL-DESIGN.md); detection
 | Field | Entry |
 |---|---|
 | ATT&CK | T1071.004 Application Layer Protocol: DNS (tactic: Command and Control, TA0011) |
-| Preconditions | lab deployed based on repo `main`; NVA and NSG are deployed within baselines that block outbound traffic by default for tier0 (R5 (e) to be fixed); tier0 is an assume-breach endpoint sending manifested DNS queries with high entropic domain names; queries to Azure DNS (168.63.129.16) are platform traffic that the UDRs do not steer through the NVA, so the egress rules do not apply to them; DNS security policy and rule (c) are deployed |
+| Preconditions | lab deployed based on repo `main`; NVA and NSG are deployed within baselines that block outbound traffic by default for tier0 (EV-M2-14 (e) to be fixed); tier0 is an assume-breach endpoint sending manifested DNS queries with high entropic domain names; queries to Azure DNS (168.63.129.16) are platform traffic that the UDRs do not steer through the NVA, so the egress rules do not apply to them; DNS security policy and rule (c) are deployed |
 | Procedure | the assume-breach endpoint on tier0 attempts to send DNS requests with high entropic domain names. |
 | Expected control | No control presented |
 | Expected signal | DNSQueryLogs: queries with long, high-entropy labels under one domain, at a rate well above the tier's baseline; detection (c) fires |

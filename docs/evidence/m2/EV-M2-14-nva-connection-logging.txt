@@ -1,6 +1,6 @@
 ### 2026-10-27 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
 ### test: the NVA logs, with a distinct prefix, the tier-2 to tier-0 drop and each accepted new connection, and the lines reach the workspace (W7 item c, ADR D21)
-### note: before this change the forward chain logged only its final drop; accepted lab traffic and the tier-2 to tier-0 drop left no line, so detection (b) could not tell "passed the NVA" from "bypassed it" (R4 (a) used a temporary table for this). The two rules are changed in place, not added after them: nftables stops at the first verdict, so a log rule placed after the accept would never match.
+### note: before this change the forward chain logged only its final drop; accepted lab traffic and the tier-2 to tier-0 drop left no line, so detection (b) could not tell "passed the NVA" from "bypassed it" (EV-M2-13 (a) used a temporary table for this). The two rules are changed in place, not added after them: nftables stops at the first verdict, so a log rule placed after the accept would never match.
 ### note: #50 (dfc1ad1), infra/envs/lab/cloud-init-nva.yaml. Lab built by Terraform apply 40576959079 (14:19:10-14:23:48, NVA recreated); Reachability assertion 40577668377 passed.
 
 ### (a) the forward chain as committed

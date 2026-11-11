@@ -117,7 +117,7 @@ Success  MICROSOFT.STORAGE/STORAGEACCOUNTS/LISTKEYS/ACTION           2026-10-20T
 Success  MICROSOFT.OPERATIONALINSIGHTS/WORKSPACES/SHAREDKEYS/ACTION  2026-10-20T23:44:09.4681071Z  .../workspaces/log-cne-observability
 Success  MICROSOFT.STORAGE/STORAGEACCOUNTS/LISTKEYS/ACTION           2026-10-20T23:44:08.9694264Z  .../storageaccounts/sacneflowlogs
 
-### note: every key retrieval lines up with a Terraform run (azurerm reads keys when it refreshes a storage account or a workspace, resource or data source alike). None is left over for Traffic Analytics: in about two hours it did not retrieve the account key, nor the workspace key a key-based write would need. Local auth being disabled on the workspace is therefore not a likely cause either: no request reached the point where it would apply. Consequence for state: R3.
+### note: every key retrieval lines up with a Terraform run (azurerm reads keys when it refreshes a storage account or a workspace, resource or data source alike). None is left over for Traffic Analytics: in about two hours it did not retrieve the account key, nor the workspace key a key-based write would need. Local auth being disabled on the workspace is therefore not a likely cause either: no request reached the point where it would apply. Consequence for state: EV-M2-12.
 
 ### result
 ### Stage 1 is effective: the flow logs write to the account steadily, with shared key disabled. Stage 2 is configured but not effective: Traffic Analytics is enabled on the flow log with the right workspace, the resource provider is registered, yet in over two hours it read nothing from the account, retrieved no key and wrote no row. Excluded: the flow-log configuration, the provider registration, shared key on the account (experiment (e)); local auth on the workspace is unlikely by (f). Not yet explained: why the processing never starts. The raw logs of this session sit in the account until its lifecycle rule removes them (30 days).
@@ -127,7 +127,7 @@ Success  MICROSOFT.STORAGE/STORAGEACCOUNTS/LISTKEYS/ACTION           2026-10-20T
 ### note: the session ran 21:35 to 23:00. Nothing under infra/ changed since (f): main at a19967f. Today's date in UTC is 2026-10-27, which is what the outputs below show.
 
 ### (g1) the build: no 409 this time
-### runs: Terraform apply 40445630467 (workflow_dispatch, a19967f), 21:42:09-21:47:23, success on attempt 1. A second dispatch (40446073563, 21:46:57-21:48:17) queued behind it on the state lock and finished after it. Reachability assertion 40446116687 failed on the Azure CLI deadlock (Q1 (g)); 40446196892 passed 9/9.
+### runs: Terraform apply 40445630467 (workflow_dispatch, a19967f), 21:42:09-21:47:23, success on attempt 1. A second dispatch (40446073563, 21:46:57-21:48:17) queued behind it on the state lock and finished after it. Reachability assertion 40446116687 failed on the Azure CLI deadlock (EV-M2-09 (g)); 40446196892 passed 9/9.
 ### note: this is the first build from nothing since #41. The flow logs were created after the subnets, associations and peerings, and no resource hit 409. The open point in (a) is closed.
 
 ### (g2) the NWTA resources from 2026-10-20: created at the first flow log, removed most of a day after the last was destroyed

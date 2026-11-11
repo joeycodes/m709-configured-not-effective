@@ -1,7 +1,7 @@
 ### 2026-10-27 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
 ### test: detection (a) stays silent while tier 2 to tier 0 is blocked, stays silent while only one of the two blocking layers is open, and raises an incident once both are open (ADR D21; scenario #1's detection)
 ### note: this is the rule's own synthetic trigger, made to show that it fires. It is not a run of scenario #1, which is pre-registered and run in M3.
-### note: tier 2 to tier 0 is blocked twice: on the NVA (nftables, fwd-t2t0-drop, R5) and on the tier-0 NSG (DenyTier2ToTier0, priority 200, inbound). VNet flow logs record a connection at every NIC it crosses (R4 (e)); a row at the tier-2 NIC or the NVA's inbound side says Allowed even when the NVA then drops the packet. Only an Allowed row at the tier-0 NIC means the packet arrived, so the rule selects on that.
+### note: tier 2 to tier 0 is blocked twice: on the NVA (nftables, fwd-t2t0-drop, EV-M2-14) and on the tier-0 NSG (DenyTier2ToTier0, priority 200, inbound). VNet flow logs record a connection at every NIC it crosses (EV-M2-13 (e)); a row at the tier-2 NIC or the NVA's inbound side says Allowed even when the NVA then drops the packet. Only an Allowed row at the tier-0 NIC means the packet arrived, so the rule selects on that.
 ### note: rule by #51 (6a0da77), Terraform apply (observability) 40589205308, 15:43:54-15:44:46. Lab from #50. tier 2 10.103.0.4, tier 0 10.101.0.4. Tests use TCP 22: ICMP from tier 1 to tier 0 that day left no NTANetAnalytics row, so ping is not used as a signal.
 
 ### (a) the rule as deployed
@@ -24,7 +24,7 @@ NTANetAnalytics
 SrcIp       DestIp      DestPort  L4Protocol  Count  Flows  FirstSeen [UTC]                LastSeen [UTC]
 10.102.0.4  10.101.0.4  22        TCP         3      6      10/27/2026, 4:27:42.042 AM     10/27/2026, 8:25:28.003 PM
 
-### note: 6 flows = the three connections of R4 plus the three of R5. With the range set back to tier 2 (10.103.0.0/16): "No results found from the last 24 hours."
+### note: 6 flows = the three connections of EV-M2-13 plus the three of EV-M2-14. With the range set back to tier 2 (10.103.0.0/16): "No results found from the last 24 hours."
 
 ### (c) step 1, baseline: both layers block
 ### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-tier2 --command-id RunShellScript --scripts 'date -u; for i in 1 2 3; do timeout 3 bash -c "</dev/tcp/10.101.0.4/22" && echo open || echo closed; done'
@@ -34,7 +34,7 @@ closed
 closed
 closed
 
-### note: the NVA's fwd-t2t0-drop counter read 21 just after, against 12 from R5: 9 more packets, three SYNs per attempt. Dropped at the NVA; nothing reaches the tier-0 NIC.
+### note: the NVA's fwd-t2t0-drop counter read 21 just after, against 12 from EV-M2-14: 9 more packets, three SYNs per attempt. Dropped at the NVA; nothing reaches the tier-0 NIC.
 
 ### (d) step 2, the NVA layer opened, the NSG still in place
 ### cmd: az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts 'nft insert rule inet filter forward ip saddr 10.103.0.0/16 ip daddr 10.101.0.0/16 counter accept; nft list chain inet filter forward'
@@ -74,7 +74,7 @@ allowvnetoutbound      Outbound       fl-cne-tier2  Allowed     2026-10-27T20:26
 allowvnetoutbound      Outbound       fl-cne-hub    Allowed     2026-10-27T21:53:02.097Z  3
 denytier2totier0       Inbound        fl-cne-tier0  Denied      2026-10-27T21:53:02.098Z  9
 
-### note: tier 2 out and NVA in: 9 = three connections each from R5 (14:26), step 1 and step 2. NVA out and tier 0 in: step 2 only. In step 1 (and R5) the connection stops inside the NVA: no NVA-out row, no tier-0 row. In step 2 it crosses the NVA and is refused at the tier-0 NIC by DenyTier2ToTier0. The second layer held while the first was open.
+### note: tier 2 out and NVA in: 9 = three connections each from EV-M2-14 (14:26), step 1 and step 2. NVA out and tier 0 in: step 2 only. In step 1 (and EV-M2-14) the connection stops inside the NVA: no NVA-out row, no tier-0 row. In step 2 it crosses the NVA and is refused at the tier-0 NIC by DenyTier2ToTier0. The second layer held while the first was open.
 ### note: the same three connections count 3 at the NVA's outbound side and 9 denied at tier 0. Each retransmitted SYN appears to count as a new flow where the NSG denies, since no connection state is kept for refused packets; 9 also matches the NVA counter. Observed, not documented.
 ### note: the rule's query returned no row here (no Allowed at tier 0), and no alert came from any run before 22:29:46 UTC; see (g).
 
@@ -118,7 +118,7 @@ IncidentNumber  Severity  Status  TimeGenerated                 Title
 1               High      New     2026-10-27T22:35:10.2666667Z  T2 to T0 Accepted
 
 ### note: StartTime/EndTime of an alert are the window the run queried, so the rule runs at :x9:46; each window is 30 minutes. The row with TimeGenerated 22:23:19 lies in the windows of the 22:29:46, 22:39:46 and 22:49:46 runs, hence one alert and one incident per run; a third was expected and not checked at the time; incident 3, "T2 to T0 Accepted", seen in the Defender portal on 2026-10-30 (no T2->T0 traffic that day), is it. Duplicates are the cost of the overlapping window; alert grouping or suppression would remove them and is not configured.
-### note: in the Microsoft Defender portal (Incidents), both incidents appear only after removing the queue's "Priority score: 15-100" filter: each scored 2 (Defender scores incidents 0-100 and greys those below 15). The rule maps no entities, which likely keeps the score low. An analyst on the default view would not have seen them. Screenshot: S2-defender-incidents.png.
+### note: in the Microsoft Defender portal (Incidents), both incidents appear only after removing the queue's "Priority score: 15-100" filter: each scored 2 (Defender scores incidents 0-100 and greys those below 15). The rule maps no entities, which likely keeps the score low. An analyst on the default view would not have seen them. Screenshot: EV-M2-16-defender-incidents.png.
 ### timeline (UTC-6):
 
 ### | 16:09:26 | connection accepted at tier 0 (FlowStartTime)              | +0        |
@@ -149,7 +149,7 @@ Plan: 0 to add, 1 to change, 0 to destroy.
 Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
 
 ### note: Terraform sees the NSG change, because the NSG rule is in state; it cannot see the NVA change, because the runtime ruleset is not a Terraform resource: cloud-init writes it once, at first boot. Had the NVA not been reloaded by hand, a green apply would have left layer 1 open.
-### runs: Reachability assertion 40597070139 (after that apply), failure: the Azure CLI deadlock of Q1 (g) on the first query, not a route failure.
+### runs: Reachability assertion 40597070139 (after that apply), failure: the Azure CLI deadlock of EV-M2-09 (g) on the first query, not a route failure.
 ### cmd: gh run view 40597070139 --log | grep -E "PASS|FAIL|deadlock|Failed to retrieve"
 
 2026-10-27T22:44:55.2918725Z ERROR: deadlock detected by _ModuleLock('requests.structures') at 140087903694032

@@ -1,6 +1,6 @@
 ### 2026-10-26 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
 ### test: the three telemetry sources of ADR D21 can be read from the observability workspace with KQL, and two independent sources record the same event: one TCP connection from tier 1 to tier 0, seen by the VNet flow logs (outside the VMs) and by nftables on the NVA (inside the NVA)
-### note: sources: control plane, AzureActivity (subscription Activity Log diagnostic setting, infra/envs/observability/activity-log.tf); VNet flows, NTANetAnalytics (flow logs + Traffic Analytics, R1); NVA, Syslog (AMA + DCR, R2). DNS logging (W7) is not built and not part of this test.
+### note: sources: control plane, AzureActivity (subscription Activity Log diagnostic setting, infra/envs/observability/activity-log.tf); VNet flows, NTANetAnalytics (flow logs + Traffic Analytics, EV-M2-10); NVA, Syslog (AMA + DCR, EV-M2-11). DNS logging (W7) is not built and not part of this test.
 ### note: lab built by Terraform apply 40445630467 (a19967f), destroyed by Terraform nightly destroy 40452437190 (22:55:54-22:59:38). Addresses are the lab's private ones, allocated at build: tier 1 10.102.0.4, tier 0 10.101.0.4, NVA 10.100.2.4. MAC addresses are Azure-assigned to the virtual NICs and change with every build.
 
 ### (a) a log line for the connection on the NVA
@@ -93,4 +93,4 @@ table ip security {
 ### note: (b) and (e) show the connection allowed by the NVA (baseline accepts lab sources) and by tier 0's NSG through Azure's default AllowVnetInBound. Whether tier 1 should reach tier 0 on 22 at all is a design question, not decided here; recorded as a candidate baseline gap for M3.
 
 ### result
-### All three sources of ADR D21 that are built can be queried from one workspace with KQL, and two of them, independent of each other, recorded the same three connections within the same eleven seconds: the flow logs at four NICs, with the NSG rule for each hop, and nftables on the NVA. Open: Traffic Analytics' topology (FlowType Unknown, R1 (g5)); log prefixes in the baseline so the NVA records connections without a test table (W7 c); DNS (W7).
+### All three sources of ADR D21 that are built can be queried from one workspace with KQL, and two of them, independent of each other, recorded the same three connections within the same eleven seconds: the flow logs at four NICs, with the NSG rule for each hop, and nftables on the NVA. Open: Traffic Analytics' topology (FlowType Unknown, EV-M2-10 (g5)); log prefixes in the baseline so the NVA records connections without a test table (W7 c); DNS (W7).

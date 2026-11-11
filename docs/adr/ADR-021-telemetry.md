@@ -24,7 +24,7 @@ rest of the telemetry has to be chosen.
   | VNet flow logs with Traffic Analytics, 10-minute interval | `NTANetAnalytics` | (a), (b) |
   | NVA nftables log rules → rsyslog → Azure Monitor Agent and a DCR | `Syslog` | (b), and that the NVA drop fires |
   | DNS security policy linked to the tier VNets | `DNSQueryLogs` | (c) |
-  | Activity Log (D17) | `AzureActivity` | control-plane changes, such as the drift in evidence Q1 |
+  | Activity Log (D17) | `AzureActivity` | control-plane changes, such as the drift in evidence EV-M2-09 |
 
 - **DNS is logged by a DNS security policy, not by a resolver on the NVA.** The
   VMs keep resolving through Azure DNS, and the policy logs those queries with
@@ -77,8 +77,8 @@ rows from the lab, recorded as evidence.
 
 **Amendment (2026-10-26): DNS moves to M3, week 9**
 - The DNS source and detection (c) are deferred from M2 to M3 week 9. M2 closes
-  on rules (a) and (b), whose sources are built and verified (evidence R1, R2,
-  R4). (c) must be in place before scenario #4 runs in week 10.
+  on rules (a) and (b), whose sources are built and verified (evidence EV-M2-10, EV-M2-11,
+  EV-M2-13). (c) must be in place before scenario #4 runs in week 10.
 - Checked: `dnsResolverPolicies` is offered in `canadaeast`
   (`az provider show -n Microsoft.Network`, 2026-10-26). Its logs go to
   `DNSQueryLogs`, resource type `microsoft.network/dnsresolverpolicies`, with

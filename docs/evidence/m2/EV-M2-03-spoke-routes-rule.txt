@@ -6,7 +6,7 @@
 ###   (3) any VirtualAppliance route whose next hop is known at plan time names lab.nva_ip (10.100.2.4, infra/policy/lab.rego).
 ### note: on a fresh build every next hop is unknown (absent from `after`, true in `after_unknown`), because it references the hub NIC before the NIC exists; rule (2) covers that case from the configuration. A next hop written as a literal address is known at plan time and never appears among the references, so (2) cannot see it: rule (3) exists for that case, and (e) shows it is the only rule that fires there. The hub NIC's own address is checked separately (nva_ip.rego).
 ### note: `references` lists each reference twice over: once as the attribute (hub.private_ip_address) and once as the resource (hub), and the route block's two routes each contribute both, so the real plan carries four entries.
-### note: same plan as P1 (d) and P2: the lab destroyed, every resource planned for creation. (b) is that plan unmodified; (c) to (e) each change it in one place, shown by the diff, keeping the shape Terraform generates (where a route is removed or a next hop becomes known, the matching after_unknown entry is changed with it).
+### note: same plan as EV-M2-01 (d) and EV-M2-02: the lab destroyed, every resource planned for creation. (b) is that plan unmodified; (c) to (e) each change it in one place, shown by the diff, keeping the shape Terraform generates (where a route is removed or a next hop becomes known, the matching after_unknown entry is changed with it).
 ### note: run with conftest 0.71.1 (OPA 1.21.1), the version CI will pin, on a copy of the plan in a scratch directory; file paths are shown as file names. Colour codes removed. The failure messages are those of the rule as of this run.
 
 ### (a) unit tests, all rules

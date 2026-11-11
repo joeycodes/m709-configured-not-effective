@@ -6,7 +6,7 @@
 ### (a) the deployment
 ### runs: #49 (171d3e2), Terraform apply (observability) 40573661473, 13:57:01-13:58:17
 
-### (b) the trial, as Sentinel reports it (Azure portal > Microsoft Sentinel > News & guides > Free trial; screenshot S1-sentinel-onboarding.png)
+### (b) the trial, as Sentinel reports it (Azure portal > Microsoft Sentinel > News & guides > Free trial; screenshot EV-M2-15-sentinel-onboarding.png)
 
 Your free trial is active from 10/27/2026 to 11/27/2026 at 11:59:59 PM UTC
 You have 31 days remaining in your free trial.

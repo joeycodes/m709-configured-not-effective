@@ -31,7 +31,7 @@ FAIL: vm-cne-tier2 does not have the expected route for 10.100.0.0/14 via the NV
 PASS: illegal Azure implemented default route is invalid for vm-cne-tier2.
 exit=1
 
-### (b) Q1: lab built from main; the assertion starts on its own after the apply
+### (b) EV-M2-09: lab built from main; the assertion starts on its own after the apply
 ### runs: Terraform apply 39000889477 (workflow_dispatch, 4m30s) -> Reachability assertion 39001190432 (workflow_run), success
 
 PASS: vm-cne-tier0 has a single active user route for 0.0.0.0/0 via the NVA
@@ -89,7 +89,7 @@ assert	Assert	2026-10-17T04:17:30.5507367Z PASS: illegal Azure implemented defau
 ### (e) the drift, its detection and its repair, side by side
 
 ### | step | configuration      | plan-time rules | effective routes, tier 1          | assertion            |
-### | Q1   | as committed       | pass            | via the NVA                       | 9/9 pass             |
+### | EV-M2-09   | as committed       | pass            | via the NVA                       | 9/9 pass             |
 ### | Q2   | unchanged          | (not run)       | 0.0.0.0/0 -> Internet, Active     | tier 1: 3 fail       |
 ### | Q3   | unchanged; applied | pass            | via the NVA                       | 9/9 pass             |
 
