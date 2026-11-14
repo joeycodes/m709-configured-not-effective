@@ -47,11 +47,11 @@ Scenarios as in [TECHNICAL-DESIGN.md](../../docs/TECHNICAL-DESIGN.md); detection
 
 | Field | Entry |
 |---|---|
-| ATT&CK |  |
-| Preconditions |  |
-| Procedure |  |
-| Expected control |  |
-| Expected signal |  |
-| Prevented means |  |
-| Detected means |  |
-| Expected outcome |  |
+| ATT&CK | T1552.005 Unsecured Credentials: Cloud Instance Metadata API (tactic: Credential Access, TA0006) |
+| Preconditions | Lab deployed based on repo `main`, assertion passed; vm-cne-hub (NVA) is running and has a system-assigned managed identity; The identity has no RBAC role assignment; The attacker already has command execution on vm-cne-hub (assume-breach) |
+| Procedure | Baseline (identity has no role): The assume-breach endpoint on the NVA hub attempts to obtain a token through IMDS API address and call ARM (GET resources); expected it refused (no role).  Misconfigured (identity granted Reader): grant the identity Reader on rg-cne-lab; obtain a token again and call ARM; expect it to succeed. |
+| Expected control | Network controls do not apply (IMDS is local, 169.254.169.254). The only control is RBAC: whether the stolen token can act depends on the identity’s role. In baseline the identity has no role, so RBAC blocks any API call. |
+| Expected signal | No signal: The IMDS call leaves no log (local to the VM). The token's use for a GET (read) does not write to AzureActivity, which records only control-plane writes. So neither stealing the token nor using it to read is visible. |
+| Prevented means | Baseline: the stolen token cannot act, the GET is refused (403), because the identity has no role. Misconfigured: the token acts; the GET succeeds |
+| Detected means | No detected means. There is no signal to build one on: the token theft is invisible, and the read produces no AzureActivity record. So there is no path to detection in this scenario. |
+| Expected outcome | Baseline: Prevented: token theft cannot be prevented (IMDS is local and always issues one), but the RBAC config prevents any further information gathering through the ARM API. Detected: No. Neither the token request nor the local IMDS call is logged, so the activity cannot be detected. Misconfigured: Prevented: token theft is equally unpreventable; this time the RBAC configuration allows information gathering within a limited scope (rg-cne-lab). Detected: No. It is equally undetectable (a read writes nothing to AzureActivity). |
