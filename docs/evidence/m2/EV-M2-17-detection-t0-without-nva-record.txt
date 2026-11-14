@@ -123,3 +123,8 @@ IncidentNumber  Severity  Status  TimeGenerated
 
 ### result
 ### Detection (b) works end to end: deployed from code, it raised an incident for a connection that reached tier 0 without the NVA logging it, 24 minutes after the connection, and not for an equal connection the NVA had logged. Both were Allowed at the same NIC by the same NSG rule; the difference was visible only by joining the NVA's record to the flow. It inherits the flow logs' latency, and its join is blind to time within the window, which the test had to work around.
+
+### Amendment (2026-11-13): the synthetic trigger hid a real defect; see EV-M3-06
+### This test used tier 1 -> tier 0 port 8080, a three-tuple with no prior fwd-accept in Syslog, so the leftanti join had nothing to match and the rule fired cleanly. That made detection (b) look reliable.
+### Scenario #3 (EV-M3-06) ran the real bypass over port 22. tier 1 -> tier 0 SSH is a normal operation, so Syslog holds fwd-accept lines for that three-tuple across past sessions. The rule's right side has no time limit, so leftanti matched the bypass flow against those historical lines and excluded it: the deployed rule, run by hand, returned nothing, while Sentinel's runs (different window and ingestion state) alerted. The detection is timing-dependent, not reliable.
+### So this test passed only because the chosen port had no history. The "blind to time" note in the result above is the root cause. Fix: a time-proximity join (leftouter + a +/-2m check), EV-M3-06 (e4), to be deployed as remediation B.
