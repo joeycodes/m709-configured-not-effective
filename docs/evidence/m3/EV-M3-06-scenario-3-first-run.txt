@@ -1,0 +1,139 @@
+### 2026-11-13 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
+### test: scenario #3, routing misconfiguration bypasses the NVA (T1562.007), first run. Runbook: attack/scenarios/scenario-3-routing-misconfiguration.md. Pre-registration: PREREGISTRATION.md #3 (#74, before this run). Test operator: ADR-024.
+### note: pre-registered outcome: Prevented: No (the peering's /16 route bypasses the NVA) · Detected: Yes (detection (b)) · MTTD measured. Foothold vm-cne-tier1 10.102.0.4; target vm-cne-tier0 10.101.0.4.
+### note: build: Terraform apply 43489913129 (workflow_dispatch, 13:11:56), Reachability assertion 43490747270 (13:17:12), both success.
+### note: PII scrubbed: the operator UPN is shown as <lab-operator-upn>; the author's object id (updatedBy) is removed. Subscription id kept in plain text as elsewhere.
+
+### (a) setup: test operator role assignment (ADR-024; setup, not part of the scenario)
+### note: the test user <lab-operator-upn> was created by hand per ADR-024; password not recorded; exact creation time not captured (not needed for the scenario).
+### cmd (13:22:58): az role assignment create --assignee-object-id "$USER_ID" --assignee-principal-type User --role "Network Contributor" --scope "/subscriptions/$SUB/resourceGroups/$RG"
+
+createdOn:        2026-11-13T19:22:58.573656+00:00
+principalId:      222035b5-3e0c-45cc-8153-0e3a2d9696d8
+principalType:    User
+roleDefinitionId: .../roleDefinitions/4d97b98b-1d4f-4787-a291-c67834d212e7
+scope:            /subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab
+
+### note: 4d97b98b-... is the built-in Network Contributor role; scope is rg-cne-lab only.
+
+### (b) baseline, before the peering
+### cmd (13:24:46): az vm run-command invoke -g rg-cne-lab -n vm-cne-tier1 --command-id RunShellScript --scripts 'date -u; ssh -o ConnectTimeout=5 -o BatchMode=yes azureuser@10.101.0.4'
+
+Fri Nov 13 19:24:46 UTC 2026
+[stderr] ssh: Host key verification failed.
+
+### note: no timeout: the connection reached tier 0 and stopped at the host-key check (BatchMode). The path is open in the baseline.
+### cmd (about 13:40): tier-0 NIC flow log (NTANetAnalytics, vnet-cne-tier0, Inbound, Allowed, suspect source, DestPort 22)
+
+AllowedInFlows  DestIp      DestPort  FlowStartTime             FlowEndTime               SrcIp
+1               10.101.0.4  22        2026-11-13T19:24:46.065Z  2026-11-13T19:24:52.04Z   10.102.0.4
+
+### cmd (about 13:37): NVA fwd-accept (Syslog, vm-cne-hub, SrcIp 10.102.0.4, DestIp 10.101.0.4, DestPort 22)
+
+DestIp      DestPort  SrcIp       TimeGenerated
+10.101.0.4  22        10.102.0.4  2026-11-13T19:24:46.690565Z
+
+### note: baseline: tier 0 has the row AND the NVA logged a matching fwd-accept at the same time. The traffic crossed the NVA.
+### cmd (13:43): detection (b)'s query (leftanti), last 30 min: no rows. With both sides present and matched, (b) is silent, as expected.
+
+### (c) the peering, created as the operator (not CI, not the author)
+### cmd (13:51-13:56): az network vnet peering create ... (tier0-to-tier1, then tier1-to-tier0), run as <lab-operator-upn>
+
+tier0-to-tier1: provisioningState Succeeded, peeringState Initiated (13:55:55)
+tier1-to-tier0: provisioningState Succeeded, peeringState Connected, FullyInSync (13:56:53)
+
+### cmd: AzureActivity | OperationNameValue == "MICROSOFT.NETWORK/VIRTUALNETWORKS/VIRTUALNETWORKPEERINGS/WRITE" | ActivityStatusValue == "Success"
+
+Caller              OperationName                                  ResourceGroup  TimeGenerated
+<lab-operator-upn>  .../VIRTUALNETWORKPEERINGS/WRITE               RG-CNE-LAB     2026-11-13T19:56:44.99Z
+<lab-operator-upn>  .../VIRTUALNETWORKPEERINGS/WRITE               RG-CNE-LAB     2026-11-13T19:55:55.09Z
+<lab-operator-upn>  .../VIRTUALNETWORKPEERINGS/WRITE               RG-CNE-LAB     2026-11-13T19:51:24.99Z
+<lab-operator-upn>  .../VIRTUALNETWORKPEERINGS/WRITE               RG-CNE-LAB     2026-11-13T19:49:45.02Z
+
+### note: the Caller is the delegated operator, not the CI service principal: a change made outside the sanctioned path (ADR-024). az network vnet peering list shows tier0-to-tier1 and tier1-to-tier0 both Connected/FullyInSync, alongside the baseline peer-tierN-to-hub.
+
+### (d) after the peering: tier 1 -> tier 0 SSH bypasses the NVA
+### cmd (15:57:45): the same run-command SSH
+
+Fri Nov 13 21:57:45 UTC 2026
+[stderr] ssh: Host key verification failed.
+
+### cmd (about 16:06): tier-0 NIC flow log
+
+AllowedInFlows  DestIp      DestPort  FlowStartTime             FlowEndTime               SrcIp
+1               10.101.0.4  22        2026-11-13T21:57:45.092Z  2026-11-13T21:57:51.07Z   10.102.0.4
+
+### cmd (about 16:06): NVA fwd-accept for 10.102.0.4 -> 10.101.0.4:22, last 30 min: no rows.
+
+### note: after the peering the connection still reaches tier 0 (a row at the tier-0 NIC), but the NVA logged no fwd-accept for it: the /16 peering route beat the /14 UDR and the traffic skipped the NVA. This is the bypass the pre-registration predicted (Prevented: No).
+
+### (e) detection (b): the deployed rule is unreliable
+### Three observations on the same bypass flow, which do not agree.
+
+### (e1) the deployed rule (leftanti, no time limit on the Syslog side), run by hand (14:40): no rows.
+### note: tier 0 had the bypass row (d) and the NVA had no matching fwd-accept in the last 30 min, so (b) should have returned it. It did not.
+
+### (e2) why: a leftouter of the same two sides, Syslog side NOT time-limited, shows the one bypass flow matching nine historical fwd-accept lines for (10.102.0.4, 10.101.0.4, 22):
+
+SrcIp       DestIp      DestPort  FlowStartTime(bypass)     NvaTime(historical fwd-accept)
+10.102.0.4  10.101.0.4  22        2026-11-13T20:20:24Z      2026-11-13T14:49:06Z
+10.102.0.4  10.101.0.4  22        2026-11-13T20:20:24Z      2026-11-05T16:25:27Z
+10.102.0.4  10.101.0.4  22        2026-11-13T20:20:24Z      2026-10-27T20:25:21Z  (x3)
+10.102.0.4  10.101.0.4  22        2026-11-13T20:20:24Z      2026-11-13T19:24:46Z
+10.102.0.4  10.101.0.4  22        2026-11-13T20:20:24Z      2026-10-30T21:49:16Z  (x3)
+
+### note: the join keys on (SrcIp, DestIp, DestPort) only, not on time. tier 1 -> tier 0 SSH is a normal, allowed operation, so matching fwd-accept lines exist across past sessions (10-27 to today's baseline 19:24). leftanti finds a match and excludes the bypass flow, so the rule returns nothing.
+
+### (e3) Sentinel still raised incidents
+### cmd: SecurityIncident | Title == "T0 inbound without NVA record", this run
+
+CreatedTime (UTC)             IncidentNumber
+2026-11-13T20:35:17Z          19
+2026-11-13T20:45:12Z          20
+2026-11-13T20:55:24Z          21
+2026-11-13T21:05:15Z          22
+2026-11-13T21:35:27Z          23
+2026-11-13T21:45:25Z          24
+2026-11-13T21:55:22Z          25
+
+### cmd: SecurityAlert | AlertName == "T0 inbound without NVA record": eight alerts, each with a 1 h query window (query_period PT1H), e.g. window 19:30-20:30 -> incident at 20:35; the last window 21:10-22:10 -> alert at 22:15 covers the final SSH at 15:57 (21:57 UTC). All windows cover the bypass period (peering at 13:51 / 19:51 UTC).
+### note: so Sentinel DID alert on the bypass, repeatedly (incidents 19-25 plus the 22:15 alert, one per 10-min run). The deployed rule's result depends on when and over what window it runs: Sentinel's PT1H runs, with the historical fwd-accept not yet in each snapshot, returned the bypass and alerted; the by-hand PT30M run at 14:40, with the history ingested, was masked and returned nothing. The detection is not reliable, only timing-dependent. It also raises one incident per run (eight here) for one continuous bypass.
+
+### (e4) the fix: leftouter + a +/-2m time check, so only fwd-accept near the flow counts as "crossed the NVA"
+### cmd (about 16:06): the fixed query (join kind=leftouter; countif(NvaTime between (FlowStartTime-2m .. FlowEndTime+2m)); where NvaNear == 0)
+
+Count  DestIp      DestPort  FirstSeen                 LastSeen                  SrcIp       Flows
+1      10.101.0.4  22        2026-11-13T21:57:45.09Z   2026-11-13T21:57:51.07Z   10.102.0.4  1
+
+### note: the fixed query returns the bypass flow (Count 1). The nine historical fwd-accept lines fall outside the flow's +/-2m window, so they no longer mask it. ago(35m) on the right side is a performance bound, not the correctness mechanism.
+
+### (f) remediation A: RBAC drops the operator to Reader (ADR-024)
+### cmd (16:17:31): az role assignment delete ... --role "Network Contributor" ...; then az role assignment create ... --role "Reader" --scope .../resourceGroups/rg-cne-lab
+
+createdOn:        2026-11-13T22:17:31.319482+00:00
+roleDefinitionId: .../roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7   (built-in Reader)
+scope:            .../resourceGroups/rg-cne-lab
+
+### cmd: az role assignment list --assignee "$USER_ID" --all
+
+Role    Scope
+------  ------------------------------------------
+Reader  .../resourceGroups/rg-cne-lab
+
+### note: the operator now holds only Reader on rg-cne-lab; the Network Contributor assignment is gone.
+
+### (g) remediation A verified: the same peering create now fails
+### cmd (16:21:28): az network vnet peering create --name tier0-to-tier1 ... (run as <lab-operator-upn>, now Reader)
+
+(AuthorizationFailed) The client '<lab-operator-upn>' ... does not have authorization to perform action
+'Microsoft.Network/virtualNetworks/virtualNetworkPeerings/write' over scope
+'.../resourceGroups/rg-cne-lab/providers/Microsoft.Network/virtualNetworks/vnet-cne-tier0/virtualNetworkPeerings/tier0-to-tier1'.
+
+### note: with Reader only, the delegated operator can no longer create the peering (ADR-024). This is the RBAC half of the remediation: before (c) the same account created the peering; after (f) the same command is refused. Limitation (ADR-000 L2 / ADR-024): RBAC restricts delegated identities only; the subscription Owner is not restricted, and a detection on AzureActivity for network writes by any identity other than CI would be needed to cover the Owner.
+
+### result
+### Prevented: No. The operator (a delegated, non-CI identity) created a tier1<->tier0 peering (c); afterwards tier 1 -> tier 0 SSH reached tier 0 without crossing the NVA (d, no fwd-accept). The /16 peering route beat the /14 UDR. Matches the pre-registration.
+### Detected: timing-dependent, not reliable (deviates from the pre-registered "Detected: Yes"). Sentinel raised incidents 19-25 for the bypass (e3), but the same deployed rule, run by hand, returned nothing (e1), because its leftanti join matches the three-tuple over all history and the normal tier1->tier0 SSH leaves matching fwd-accept lines that mask the bypass (e2).
+### note: EV-M2-17 (the rule (b) synthetic trigger) used 10.102.0.4 -> 10.101.0.4:8080, a three-tuple with no history, so leftanti matched and the rule looked reliable. The real scenario used :22 (heavy history), which exposed the masking. The synthetic trigger passed precisely because it used a clean tuple; append a dated note to EV-M2-17.
+### Remediation (to run next): the fixed KQL (e4) in infra/detections/t0_inbound_without_nva_record.kql, plus RBAC (drop the operator to Reader; a repeat peering create then fails with AuthorizationFailed, ADR-024). Re-run must use :22 (with history), not a clean tuple, to prove the fix.
+### MTTD: from the peering creation (13:51:24 / 19:51:24 UTC, first operator write) to the first incident (19 at 20:35:17 UTC) = about 43 min 53 s. But because detection is unreliable here, MTTD is reported with that caveat.
