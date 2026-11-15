@@ -121,3 +121,7 @@ managed VPN Gateway in one respect, below.
 Evidence in `docs/evidence/m1/`: EV-M1-28 to EV-M1-30 for the tunnel, EV-M1-31 for BGP, EV-M1-32 to EV-M1-34 for
 the NSG finding and the data path in both directions, EV-M1-35 for `ipsec0` after
 link-local addressing was turned off, and EV-M1-36 for the rebuild from `main`.
+
+**Amendment (2026-11-15): not carried out**
+Validation window #2 (managed Azure Firewall) is not taken, and Suricata is not
+built; see [ADR-025](ADR-025-project-close.md).

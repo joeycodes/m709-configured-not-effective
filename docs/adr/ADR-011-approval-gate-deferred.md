@@ -26,3 +26,7 @@ on merge to `main` without a required reviewer.
 **Follow-up (M2)**
 Create the `production` environment with a required reviewer; then replace the
 `gh-main` federated credential with one scoped to `environment:production`.
+
+**Amendment (2026-11-15): not carried out**
+The follow-up above is not done. The project closes with no approval gate; see
+[ADR-025](ADR-025-project-close.md).

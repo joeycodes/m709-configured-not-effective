@@ -65,3 +65,8 @@ tier-2 → tier-0 deny also existed only as a rule inserted by hand during a tes
 Evidence in `docs/evidence/m1/`, EV-M1-18 to EV-M1-22 and EV-M1-23 to EV-M1-25: the default route, the
 management path, the egress address, the inbound refusal, and the directional
 deny with its counter.
+
+**Amendment (2026-11-15): partly carried out**
+Tier-0 egress was closed in M3 (#60, EV-M3-02). Restricting tier-0 inbound to
+named sources and ports, and narrowing tier-1 and tier-2 egress, are not done;
+see [ADR-025](ADR-025-project-close.md).

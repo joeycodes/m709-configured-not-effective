@@ -30,3 +30,4 @@ limitations L1 to L3.
 | ADR-021 | Telemetry for the two mandatory scenarios: native tables, Sentinel from week 8 | [ADR-021-telemetry.md](ADR-021-telemetry.md) |
 | ADR-023 | M3 scope and method: four mandatory scenarios, pre-registered, Atomic Red Team first | [ADR-023-m3-scope-and-method.md](ADR-023-m3-scope-and-method.md) |
 | ADR-024 | The scenario #3 test operator is created by hand, outside CI | [ADR-024-scenario-3-test-operator.md](ADR-024-scenario-3-test-operator.md) |
+| ADR-025 | The project closes after four scenarios; the remaining planned work is dropped | [ADR-025-project-close.md](ADR-025-project-close.md) |
