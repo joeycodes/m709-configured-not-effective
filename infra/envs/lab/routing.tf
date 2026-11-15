@@ -27,13 +27,6 @@ resource "azurerm_route_table" "spoke" {
   tags                = merge(local.common_tags, { "zone" = each.key })
 
   route {
-    name                   = "to-other-tiers-via-nva"
-    address_prefix         = "10.100.0.0/14"
-    next_hop_type          = "VirtualAppliance"
-    next_hop_in_ip_address = azurerm_network_interface.hub.private_ip_address
-  }
-
-  route {
     name                   = "default-via-nva"
     address_prefix         = "0.0.0.0/0"
     next_hop_type          = "VirtualAppliance"
