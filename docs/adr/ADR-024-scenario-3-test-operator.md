@@ -1,6 +1,6 @@
 # ADR-024: The scenario #3 test operator is created by hand, outside CI
 
-**Status:** Accepted
+**Status:** Accepted; amended 2026-11-15, see the end of this record
 **Date:** 2026-11-12
 **Milestone:** M3 (week 10)
 
@@ -88,3 +88,8 @@ Before the first run of #3: `az ad user show` returns the user, and
 `Network Contributor` on `rg-cne-lab`. After the remediation, the same list shows
 only `Reader` on `rg-cne-lab`. After the re-run, and again after the final run,
 `az ad user show` returns not found.
+
+**Amendment (2026-11-15): final run dropped**
+The test user has been deleted. The final run does not take place
+([ADR-025](ADR-025-project-close.md)), so the user is not created again. The
+`AzureActivity` detection named under Known limitations is not built.

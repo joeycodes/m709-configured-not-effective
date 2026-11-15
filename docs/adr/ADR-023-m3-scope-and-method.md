@@ -1,6 +1,6 @@
 # ADR-023: M3 scope and method: four mandatory scenarios, pre-registered, Atomic Red Team first
 
-**Status:** Accepted; amended 2026-11-09 (tooling) and 2026-11-10 (runbooks, #9), see Amendments
+**Status:** Accepted; amended 2026-11-09 (tooling), 2026-11-10 (runbooks, #9) and 2026-11-15 (project close), see Amendments
 **Date:** 2026-11-06
 **Milestone:** M3 (week 9)
 
@@ -114,3 +114,9 @@ the four, citing evidence.
   host (T1046). Nothing today reliably monitors or alerts on it. The plan is
   to write a detection for this behaviour that raises a Sentinel alert once
   a threshold is reached.
+
+**Amendment (2026-11-15): project close**
+- The optional scenarios (#2, #5, #7, #8, #9) are not run, and the final run
+  does not take place; see [ADR-025](ADR-025-project-close.md).
+- #3 is not run again with the fixed detection (b) deployed. The fixed query
+  was run against the #3 data (EV-M3-06 (e4)).
