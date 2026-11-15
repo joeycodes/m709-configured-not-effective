@@ -137,10 +137,6 @@ resource "azurerm_linux_virtual_machine" "hub" {
     sku       = "server"
     version   = "latest"
   }
-
-  identity {
-    type = "SystemAssigned"
-  }
 }
 
 resource "azurerm_linux_virtual_machine" "onprem-srv" {
