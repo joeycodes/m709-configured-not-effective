@@ -1,0 +1,58 @@
+### 2026-11-15 (UTC-6); times in ### lines are UTC-6; timestamps inside captured output are UTC, as the systems print them (UTC-6 = UTC minus 6 h)
+### test: scenario #6 remediation -- remove the vm-cne-hub system-assigned identity so no service principal backs the IMDS token endpoint. Companion to EV-M3-07-scenario-6-first-run.txt. Runbook: attack/scenarios/scenario-6-imds-credential-abuse.md (Remediation). Pre-registration: attack/scenarios/PREREGISTRATION.md #6.
+### note: the remediation is the real fix against the baseline. In the baseline the identity (and its backing service principal) exists, so a token is always obtainable -- inert without a role, but present. Removing the identity deletes the service principal, so the token endpoint can no longer issue a credential at all. This is prevention at the source, not detection, and not a role change (revoking a role does not match the baseline, which already had no role).
+### note: change: remove the identity block from vm-cne-hub (infra/envs/lab/compute.tf), applied via CI from main (PR #80). Build: Terraform apply 43744368567 (push, success), Reachability assertion 43744916489 (success).
+### note: PII scrubbed: subscription id kept in plain text as elsewhere; the bearer token is never printed, only its length (token_len).
+
+### (a) config change: the system-assigned identity block removed from vm-cne-hub (compute.tf)
+-  identity {
+-    type = "SystemAssigned"
+-  }
+
+### (b) token endpoint can no longer issue a credential
+### cmd (12:37:20): on vm-cne-hub, the same IMDS-token-then-ARM call used in the first run (token value discarded; only length and HTTP status kept)
+az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts '
+date -u
+SUB="23f19e67-5d24-4e37-9258-707daef49af0"
+TOKEN=$(curl -s -H "Metadata:true" "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/" | python3 -c "import sys,json;print(json.load(sys.stdin)[\"access_token\"])")
+echo "token_len ${#TOKEN}"
+curl -s -o /dev/null -w "HTTP %{http_code}\n" -H "Authorization: Bearer $TOKEN" \
+  "https://management.azure.com/subscriptions/$SUB/resourceGroups/rg-cne-lab/resources?api-version=2021-04-01"'
+
+[stdout]
+Sun Nov 15 18:37:20 UTC 2026
+token_len 0
+HTTP 401
+[stderr]
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'access_token'
+
+### note: after the identity removal the token endpoint no longer returns an access_token: the JSON has no such key (KeyError), so TOKEN is empty (token_len 0), and the ARM call with an empty bearer returns 401. Compare the first run (EV-M3-07-scenario-6-first-run), where the identical command produced token_len 2144 and a 403 (baseline) / 200 (misconfigured). The attack surface is gone at the source: there is no credential to steal, independent of any RBAC role. This is why removing the service principal -- not revoking a role -- is the remediation that matches the baseline.
+
+### (c) confirmatory checks
+### cmd (12:45:16): az vm show -g rg-cne-lab -n vm-cne-hub --query identity -o json
+
+(empty output -- no identity object; the system-assigned identity is gone)
+
+### note: the VM no longer has an identity block, so Azure has deleted the backing service principal. This is the direct confirmation of (e2): no principal exists to mint a token.
+### cmd: on vm-cne-hub, the IMDS instance endpoint (expected HTTP 200: IMDS itself remains, only token issuance is gone)
+az vm run-command invoke -g rg-cne-lab -n vm-cne-hub --command-id RunShellScript --scripts '
+curl -s -o /dev/null -w "instance HTTP %{http_code}\n" -H "Metadata:true" "http://169.254.169.254/metadata/instance?api-version=2021-02-01"'
+
+[stdout]
+instance HTTP 200
+
+### note: the instance-metadata endpoint still returns 200. IMDS as a service is unchanged; only the identity/token path (which needs a service principal) is gone. Removing the identity closed the credential endpoint without disabling IMDS or anything else on the VM.
+
+### (d) telemetry still flows after the identity removal (AMA ships via DCR and does not use the VM identity)
+### cmd (12:43:40): NTANetAnalytics, sources in 10.100.0.0/14, last 30 min (the identity was removed and the token test ran at 18:37:20 UTC / 12:37:20)
+DestIp          DestPort  SrcIp       SubType   TimeGenerated
+3.254.173.149   443       10.101.0.4  FlowLog   2026-11-15T18:21:54.0895968Z
+34.244.58.147   443       10.101.0.4  FlowLog   2026-11-15T18:31:53.5569229Z
+4.150.240.10    443       10.100.2.4  FlowLog   2026-11-15T18:41:56.2077113Z
+20.60.142.33    443       10.100.2.4  FlowLog   2026-11-15T18:41:56.2077113Z
+20.150.1.68     443       10.100.2.4  FlowLog   2026-11-15T18:41:56.2077113Z
+20.209.64.68    443       10.100.2.4  FlowLog   2026-11-15T18:41:56.2077113Z
+
+### note: vm-cne-hub (10.100.2.4) produced flow-log rows at 18:41:56 UTC -- after the identity was removed and after the 18:37:20 token test that confirmed no token can be issued. Removing the identity did not stop telemetry: AMA ships through its DCR/DCE on the Azure Monitor data plane, which does not use the VM identity. The control (log shipping) and the attack surface (the token endpoint) are independent; removing the identity closes the latter without touching the former.
